@@ -16,7 +16,11 @@ dataset = load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True
 tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
 model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
 
-model = torch.nn.DataParallel(model)
+# Se houver mais de uma GPU, usa o DataParallel
+if torch.cuda.device_count() > 1:
+    print("Usando múltiplas GPUs!")
+    model = torch.nn.DataParallel(model)
+
 model = model.to(device)
 
 bleu_metric = evaluate.load("bleu")
