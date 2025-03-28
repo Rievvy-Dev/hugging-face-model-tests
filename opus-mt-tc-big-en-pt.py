@@ -6,6 +6,11 @@ from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
+print(torch.__version__)
+print(torch.cuda.is_available())
+print(torch.cuda.device_count())
+print(torch.cuda.get_device_name(0))
+
 dataset = load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True)["train"].shuffle(seed=42).select(range(1000))
 
 tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
@@ -14,7 +19,7 @@ model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt").to(de
 bleu_metric = evaluate.load("bleu")
 chrf_metric = evaluate.load("chrf")
 
-def compute_metrics(dataset, model, tokenizer, num_samples=100):
+def compute_metrics(dataset, model, tokenizer, num_samples=1000):
     model.eval()
     references, hypotheses = [], []
     
