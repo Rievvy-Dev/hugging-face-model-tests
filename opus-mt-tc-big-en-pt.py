@@ -14,7 +14,10 @@ print(torch.cuda.get_device_name(0))
 dataset = load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True)["train"].shuffle(seed=42).select(range(1000))
 
 tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
-model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt").to(device)
+model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
+
+model = torch.nn.DataParallel(model)
+model = model.to(device)
 
 bleu_metric = evaluate.load("bleu")
 chrf_metric = evaluate.load("chrf")
