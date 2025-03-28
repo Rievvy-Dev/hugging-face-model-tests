@@ -12,8 +12,6 @@ nvmlInit()
 process = psutil.Process()
 memory_before = process.memory_info().rss
 
-start_time = time.time()
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 gpu_info = "Nenhuma GPU detectada"
@@ -31,12 +29,16 @@ if torch.cuda.is_available():
 print(f"Usando: {device}")
 print(f"GPU: {gpu_info}")
 
+start_time = time.time()
+
 dataset = load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True)["train"].shuffle(seed=42).select(range(1000))
 
 tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
 model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
 
 model = model.to(device)
+
+start_time = time.time()
 
 scaler = torch.cuda.amp.GradScaler()
 
@@ -50,9 +52,10 @@ def compute_metrics(dataset, model, tokenizer, num_samples=1000):
     references, hypotheses = [], []
 
     for i in tqdm(range(0, min(num_samples, len(dataset)), batch_size), desc="Calculando métricas"):
-        batch = dataset[i:i+batch_size]
-        en_texts = [ex["translation"]["en"] for ex in batch]
-        pt_texts = [ex["translation"]["pt"] for ex in batch]
+
+        batch = dataset[i:i+batch_size]  
+        en_texts = [ex['en'] for ex in batch]  
+        pt_texts = [ex['pt'] for ex in batch]  
 
         inputs = tokenizer(en_texts, return_tensors="pt", padding=True, truncation=True, max_length=128).to(device)
 
