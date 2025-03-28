@@ -45,7 +45,7 @@ chrf_metric = evaluate.load("chrf")
 
 scaler = torch.amp.GradScaler()
 
-def compute_metrics(dataset, model, tokenizer, num_samples=1000, batch_size=8):
+def compute_metrics(dataset, model, tokenizer, num_samples=1000, batch_size=4):
     model.eval()
     references, hypotheses = [], []
 
