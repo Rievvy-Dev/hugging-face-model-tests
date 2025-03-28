@@ -24,9 +24,9 @@ if torch.cuda.is_available():
     gpu_info = torch.cuda.get_device_name(0)
     handle = nvmlDeviceGetHandleByIndex(0)
     memory_info = nvmlDeviceGetMemoryInfo(handle)
-    gpu_memory_allocated = memory_info.used / (1024 ** 2)  
-    gpu_memory_reserved = memory_info.total / (1024 ** 2)  
-    gpu_usage = (gpu_memory_allocated / gpu_memory_reserved) * 100  
+    gpu_memory_allocated = memory_info.used / (1024 ** 2)
+    gpu_memory_reserved = memory_info.total / (1024 ** 2)
+    gpu_usage = (gpu_memory_allocated / gpu_memory_reserved) * 100
 
 print(f"Usando: {device}")
 print(f"GPU: {gpu_info}")
@@ -36,32 +36,34 @@ dataset = load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True
 tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
 model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-tc-big-en-pt")
 
-if torch.cuda.device_count() > 1:
-    print("Usando múltiplas GPUs!")
-    model = torch.nn.DataParallel(model)
-
 model = model.to(device)
+
+scaler = torch.cuda.amp.GradScaler()
 
 bleu_metric = evaluate.load("bleu")
 chrf_metric = evaluate.load("chrf")
+
+batch_size = 32
 
 def compute_metrics(dataset, model, tokenizer, num_samples=1000):
     model.eval()
     references, hypotheses = [], []
 
-    for i in tqdm(range(min(num_samples, len(dataset))), desc="Calculando métricas"):
-        en_text = dataset[i]["translation"]["en"]
-        pt_text = dataset[i]["translation"]["pt"]
+    for i in tqdm(range(0, min(num_samples, len(dataset)), batch_size), desc="Calculando métricas"):
+        batch = dataset[i:i+batch_size]
+        en_texts = [ex["translation"]["en"] for ex in batch]
+        pt_texts = [ex["translation"]["pt"] for ex in batch]
 
-        inputs = tokenizer(en_text, return_tensors="pt", padding=True, truncation=True, max_length=128).to(device)
+        inputs = tokenizer(en_texts, return_tensors="pt", padding=True, truncation=True, max_length=128).to(device)
 
         with torch.no_grad():
-            translated = model.generate(**inputs)
+            with torch.cuda.amp.autocast():
+                translated = model.generate(**inputs)
 
-        decoded_translation = tokenizer.decode(translated[0], skip_special_tokens=True)
+        decoded_translations = [tokenizer.decode(t[0], skip_special_tokens=True) for t in translated]
 
-        references.append([pt_text])
-        hypotheses.append(decoded_translation)
+        references.extend([[pt_text] for pt_text in pt_texts])
+        hypotheses.extend(decoded_translations)
 
     bleu_score = bleu_metric.compute(predictions=hypotheses, references=references)["bleu"] * 100
     chrf_score = chrf_metric.compute(predictions=hypotheses, references=references)["score"]
@@ -89,7 +91,8 @@ data = {
         "chr-F Score",
         "Uso de GPU (Memória Alocada)",
         "Uso de GPU (Memória Reservada)",
-        "Uso de GPU (%)"
+        "Uso de GPU (%)",
+        "Batch Size"
     ],
     "Valor": [
         f"{elapsed_time:.2f}s",
@@ -100,7 +103,8 @@ data = {
         f"{chrf_score:.5f}",
         f"{gpu_memory_allocated:.2f} MB",
         f"{gpu_memory_reserved:.2f} MB",
-        f"{gpu_usage:.2f}%"
+        f"{gpu_usage:.2f}%",
+        batch_size
     ]
 }
 
