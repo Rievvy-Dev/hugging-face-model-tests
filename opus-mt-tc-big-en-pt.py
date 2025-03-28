@@ -24,6 +24,9 @@ if torch.cuda.is_available():
     gpu_memory_allocated = memory_info.used / (1024 ** 2)
     gpu_memory_reserved = memory_info.total / (1024 ** 2)
     gpu_usage = (gpu_memory_allocated / gpu_memory_reserved) * 100
+    
+print(f"Usando: {device}")
+print(f"GPU: {gpu_info}")
 
 dataset = load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True)["train"].shuffle(seed=42).select(range(1000))
 
