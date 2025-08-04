@@ -1,0 +1,11 @@
+Dataset,Modelo,Tempo Total,Tempo por Sentença (s),Palavras por Segundo,Uso de Memória (RAM),Memória GPU Alocada (MB),Memória GPU Reservada (MB),Total de Sentenças,Total de Palavras,BLEU,chr-F
+tatoeba,Helsinki-NLP/opus-mt-tc-big-en-pt,16,229.47s,0.0459,138.11,-327.62 MB,903.08,1956.00,5000,31693,51.07,70.40785,
+tatoeba,Narrativa/mbart-large-50-finetuned-opus-en-pt-translation,2,805.23s,0.1610,39.36,-129.23 MB,2339.52,3682.00,5000,31693,33.28,56.18650,
+tatoeba,unicamp-dl/translation-en-pt-t5,4,306.16s,0.0612,103.52,874.45 MB,859.43,1366.00,5000,31693,34.78,57.01079,
+tatoeba,VanessaSchenkel/unicamp-finetuned-en-to-pt-dataset-ted,4,306.81s,0.0614,103.30,-1211.45 MB,859.43,1366.00,5000,31693,22.69,44.28807,
+opus100,Helsinki-NLP/opus-mt-tc-big-en-pt,4,875.62s,0.1751,53.41,-473.43 MB,903.08,1352.00,5000,46765,36.25,59.55015,
+opus100,Narrativa/mbart-large-50-finetuned-opus-en-pt-translation,2,2157.98s,0.4316,21.67,-138.13 MB,2339.40,2536.00,5000,46765,24.86,45.27644,
+opus100,unicamp-dl/translation-en-pt-t5,4,959.51s,0.1919,48.74,429.19 MB,859.06,968.00,5000,46765,17.38,36.64591,
+opus100,VanessaSchenkel/unicamp-finetuned-en-to-pt-dataset-ted,4,876.20s,0.1752,53.37,-264.19 MB,859.06,968.00,5000,46765,9.82,28.44809,
+ted_talks,Helsinki-NLP/opus-mt-tc-big-en-pt,/,1649.07s,0.3298,28.36,-299.49 MB,903.08,930.00,5000,46765,36.25,59.55015,
+
