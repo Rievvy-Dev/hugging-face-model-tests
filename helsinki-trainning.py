@@ -98,7 +98,7 @@ def load_two_datasets(max_ted=None, max_tatoeba=None, seed=42):
 
     # Tente primeiro a config que o cache do cluster reportou existir
     try:
-        tatoeba = load_dataset("tatoeba", "en-pt-lang1=en,lang2=pt", split="train")
+        tatoeba = load_dataset("tatoeba", "en-pt-lang1=en,lang2=pt", split="train", trust_remote_code=True)
         print("      Tatoeba: usando config 'en-pt-lang1=en,lang2=pt'")
     except Exception as e:
         errors.append(f"en-pt-lang1=en,lang2=pt: {e}")
@@ -106,7 +106,7 @@ def load_two_datasets(max_ted=None, max_tatoeba=None, seed=42):
     # Alternativa comum
     if tatoeba is None:
         try:
-            tatoeba = load_dataset("tatoeba", "en-pt", split="train")
+            tatoeba = load_dataset("tatoeba", "en-pt", split="train", trust_remote_code=True)
             print("      Tatoeba: usando config 'en-pt'")
         except Exception as e:
             errors.append(f"en-pt: {e}")
