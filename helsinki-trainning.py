@@ -86,6 +86,7 @@ def load_two_datasets(max_ted=None, max_tatoeba=None, seed=42):
     print(f"      OPUS100 colunas: {ted.column_names}")
     if max_ted:
         ted = ted.shuffle(seed=seed).select(range(min(max_ted, len(ted))))
+    # garantir coluna translation apenas (paranoia)
     if "translation" not in ted.features:
         ted = ted.map(lambda ex: {"translation": ex["translation"]},
                       remove_columns=[c for c in ted.column_names if c != "translation"])
@@ -95,28 +96,20 @@ def load_two_datasets(max_ted=None, max_tatoeba=None, seed=42):
     tatoeba = None
     errors = []
 
-    # 1) Formato novo
+    # Tente primeiro a config que o cache do cluster reportou existir
     try:
-        tatoeba = load_dataset("tatoeba", "en-pt", split="train", trust_remote_code=True)
-        print("      Tatoeba: usando config 'en-pt'")
+        tatoeba = load_dataset("tatoeba", "en-pt-lang1=en,lang2=pt", split="train")
+        print("      Tatoeba: usando config 'en-pt-lang1=en,lang2=pt'")
     except Exception as e:
-        errors.append(f"en-pt: {e}")
+        errors.append(f"en-pt-lang1=en,lang2=pt: {e}")
 
-    # 2) Variante com sufixo (observada em alguns caches/builds)
+    # Alternativa comum
     if tatoeba is None:
         try:
-            tatoeba = load_dataset("tatoeba", "en-pt-lang1=en,lang2=pt", split="train", trust_remote_code=True)
-            print("      Tatoeba: usando config 'en-pt-lang1=en,lang2=pt'")
+            tatoeba = load_dataset("tatoeba", "en-pt", split="train")
+            print("      Tatoeba: usando config 'en-pt'")
         except Exception as e:
-            errors.append(f"en-pt-lang1=en,lang2=pt: {e}")
-
-    # 3) Formato antigo (lang1/lang2)
-    if tatoeba is None:
-        try:
-            tatoeba = load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True)["train"]
-            print("      Tatoeba: usando lang1/lang2 (formato antigo)")
-        except Exception as e:
-            errors.append(f"lang1/lang2: {e}")
+            errors.append(f"en-pt: {e}")
 
     if tatoeba is None:
         raise RuntimeError("Falha ao carregar Tatoeba. Tentativas: " + " | ".join(errors))
@@ -129,14 +122,16 @@ def load_two_datasets(max_ted=None, max_tatoeba=None, seed=42):
     except Exception:
         pass
 
-    # Normalização -> {"translation":{"en","pt"}}
+    # Normalização robusta do Tatoeba para {"translation":{"en":..., "pt":...}}
     def _to_translation(ex):
+        # Caso 1: já é dict translation
         if "translation" in ex and isinstance(ex["translation"], dict):
             tr = ex["translation"]
             en = tr.get("en") or tr.get("source") or tr.get("sentence_en") or tr.get("text_en")
             pt = tr.get("pt") or tr.get("target") or tr.get("sentence_pt") or tr.get("text_pt")
             if en is not None and pt is not None:
                 return {"translation": {"en": en, "pt": pt}}
+        # Caso 2: pares explícitos
         if "source" in ex and "target" in ex:
             return {"translation": {"en": ex["source"], "pt": ex["target"]}}
         if "en" in ex and "pt" in ex:
@@ -145,14 +140,16 @@ def load_two_datasets(max_ted=None, max_tatoeba=None, seed=42):
             return {"translation": {"en": ex["sentence1"], "pt": ex["sentence2"]}}
         if "text" in ex and "translation_text" in ex:
             return {"translation": {"en": ex["text"], "pt": ex["translation_text"]}}
+        # Heurística por prefixo
         en_key = next((k for k in ex.keys() if k.lower().startswith("en")), None)
         pt_key = next((k for k in ex.keys() if k.lower().startswith("pt")), None)
         if en_key and pt_key:
             return {"translation": {"en": ex[en_key], "pt": ex[pt_key]}}
+        # Se não deu, marca vazio
         return {"translation": {"en": None, "pt": None}}
 
     try:
-        tatoeba = tatoeba.map(_to_translation, desc="Normalizando Tatoeba", num_proc=os.cpu_count())
+        tatoeba = tatoeba.map(_to_translation, desc="Normalizando Tatoeba", num_proc=max(1, (os.cpu_count() or 1)))
     except Exception as e:
         print(f"      Aviso: multiprocessing falhou ({e}). Refazendo com num_proc=1…")
         tatoeba = tatoeba.map(_to_translation, desc="Normalizando Tatoeba", num_proc=1)
@@ -193,7 +190,7 @@ def postprocess_text(preds, labels):
 # Main
 # =========================
 def main():
-    # CUDA check dentro da main (evita prints duplicados em workers Windows)
+    # CUDA check dentro da main (evita prints duplicados)
     if not torch.cuda.is_available():
         raise SystemExit("❌ CUDA não disponível! Este script exige GPU com CUDA.")
     device = torch.device("cuda")
