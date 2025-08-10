@@ -1,5 +1,0 @@
-Modelo,Tempo Total,Tempo por Sentença (s),Palavras por Segundo,Uso de Memória (RAM),Memória GPU Alocada (MB),Memória GPU Reservada (MB),Total de Sentenças,Total de Palavras,BLEU,chr-F
-Helsinki-NLP/opus-mt-tc-big-en-pt,20.15,0.0201,311.79,961.18,903.08,2138.00,1000,6281,49.75,69.17823
-Narrativa/mbart-large-50-finetuned-opus-en-pt-translation,502.88,0.5029,12.49,-1493.32,2339.77,5122.00,1000,6281,33.71,56.18077
-unicamp-dl/translation-en-pt-t5,13.86,0.0139,453.26,49.65,863.43,5122.00,1000,6281,33.68,55.78992
-VanessaSchenkel/unicamp-finetuned-en-to-pt-dataset-ted,12.01,0.0120,523.11,-53.64,863.81,5122.00,1000,6281,22.01,43.52422
