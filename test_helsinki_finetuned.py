@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import torch
 import psutil
 import gc
@@ -29,16 +30,49 @@ USE_FLORES = True
 MAX_LEN = 128
 SEED = 42
 
+# --- Novos controles para o ParaCrawl ---
+PARACRAWL_N = 5000
+PARACRAWL_FAST_SLICE = True  # True: train[:N] (rápido e determinístico) | False: baixa tudo e embaralha
+
 bleu_metric = evaluate.load("bleu")
 chrf_metric = evaluate.load("chrf")
 
+# ====== DATASETS ======
+def load_wmt24pp():
+    # wmt24pp (en-pt_BR) — usamos uma amostra determinística para manter tempo razoável
+    # se quiser tudo, troque .select(range(998)) por sem select (cuidado com tempo/memória)
+    return (load_dataset("google/wmt24pp", "en-pt_BR", split="train")
+            .shuffle(seed=SEED).select(range(998)))
+
+def wmt24pp_total():
+    return load_dataset("google/wmt24pp", "en-pt_BR", split="train").num_rows
+
+def load_paracrawl():
+    if PARACRAWL_FAST_SLICE:
+        return load_dataset(
+            "para_crawl", "enpt", split=f"train[:{PARACRAWL_N}]",
+            trust_remote_code=True
+        )
+    else:
+        ds = load_dataset("para_crawl", "enpt", split="train", trust_remote_code=True)
+        return ds.shuffle(seed=SEED).select(range(PARACRAWL_N))
+
+def paracrawl_total():
+    # manter vazio para não forçar contagem do train completo
+    return ""
+
 DATASETS_INFO = [
+    # ---- já existentes ----
     ("ted_talks",
         lambda: load_dataset("opus100", "en-pt", split="train").shuffle(seed=SEED).select(range(5000)),
         lambda: load_dataset("opus100", "en-pt", split="train").num_rows),
     ("tatoeba",
         lambda: load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True)["train"].shuffle(seed=SEED).select(range(5000)),
         lambda: load_dataset("tatoeba", lang1="en", lang2="pt", trust_remote_code=True)["train"].num_rows),
+
+    # ---- novos: WMT24++ e ParaCrawl ----
+    ("wmt24pp", load_wmt24pp, wmt24pp_total),
+    ("paracrawl", load_paracrawl, paracrawl_total),
 ]
 
 if USE_FLORES:
@@ -48,10 +82,13 @@ if USE_FLORES:
          lambda: load_dataset("facebook/flores", "eng_Latn-por_Latn", split="dev").num_rows)
     )
 
+# batch sizes (pode ajustar conforme VRAM)
 BATCH_SIZE_BY_DATASET = {
     "ted_talks": 1,
     "tatoeba": 8,
     "flores101": 4,
+    "wmt24pp": 1,   # frases mais longas; mantenha conservador
+    "paracrawl": 1, # diversidade alta; começa pequeno para evitar OOM
 }
 
 def save_header_if_needed(filename, header):
@@ -166,7 +203,7 @@ for dataset_name, ds in DATASETS.items():
     with open(OUTPUT_FILE, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([
             dataset_name,
-            DATASET_REAL_SIZE[dataset_name],
+            DATASET_REAL_SIZE.get(dataset_name, ""),
             os.path.basename(os.path.abspath(MODEL_DIR)),
             "cuda",
             bs,

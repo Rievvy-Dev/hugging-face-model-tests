@@ -1,28 +1,4 @@
 Dataset,Tamanho Real,Modelo,Device,Batch Size,Tamanho Dataset (usado),Exemplos do Dataset,Total de Sentenças,Total de Palavras,Média Palavras por Sentença,Tempo Total,Tempo por Sentença (s),Palavras por Segundo,Uso de Memória (RAM),Memória GPU Alocada (MB),Memória GPU Reservada (MB),BLEU,chr-F,Erro
-ted_talks,1000000,Helsinki-NLP/opus-mt-tc-big-en-pt,cuda,1,5000,"EN: What do I do?
-PT: O que faço? || EN: Let's just avoid the issue, all right?
-PT: Vamos evitar esse assunto, está bem?",5000,46765,9.35,1608.86s,0.3218,29.07,-1764.26 MB,4934.98,5546.00,36.25,59.55015,
-ted_talks,1000000,Narrativa/mbart-large-50-finetuned-opus-en-pt-translation,cuda,1,5000,"EN: What do I do?
-PT: O que faço? || EN: Let's just avoid the issue, all right?
-PT: Vamos evitar esse assunto, está bem?",5000,46765,9.35,4902.07s,0.9804,9.54,-251.65 MB,4934.98,5306.00,24.86,45.27644,
-ted_talks,1000000,unicamp-dl/translation-en-pt-t5,cuda,1,5000,"EN: What do I do?
-PT: O que faço? || EN: Let's just avoid the issue, all right?
-PT: Vamos evitar esse assunto, está bem?",5000,46765,9.35,6130.14s,1.2260,7.63,-264.47 MB,4934.98,5140.00,17.38,36.64591,
-ted_talks,1000000,VanessaSchenkel/unicamp-finetuned-en-to-pt-dataset-ted,cuda,1,5000,"EN: What do I do?
-PT: O que faço? || EN: Let's just avoid the issue, all right?
-PT: Vamos evitar esse assunto, está bem?",5000,46765,9.35,8507.86s,1.7016,5.50,-267.16 MB,4934.98,5140.00,9.82,28.44809,
-tatoeba,217647,Helsinki-NLP/opus-mt-tc-big-en-pt,cuda,8,5000,"EN: There's no more room in hell.
-PT: Não há mais quartos no inferno. || EN: You know what to do.
-PT: Tu sabes o que fazer.",5000,31693,6.34,879.34s,0.1759,36.04,-255.95 MB,4934.98,5718.00,51.07,70.40703,
-tatoeba,217647,Narrativa/mbart-large-50-finetuned-opus-en-pt-translation,cuda,8,5000,"EN: There's no more room in hell.
-PT: Não há mais quartos no inferno. || EN: You know what to do.
-PT: Tu sabes o que fazer.",5000,31693,6.34,5786.01s,1.1572,5.48,-252.64 MB,4934.98,6002.00,33.32,56.20580,
-tatoeba,217647,unicamp-dl/translation-en-pt-t5,cuda,8,5000,"EN: There's no more room in hell.
-PT: Não há mais quartos no inferno. || EN: You know what to do.
-PT: Tu sabes o que fazer.",5000,31693,6.34,1037.53s,0.2075,30.55,-194.88 MB,4934.98,5232.00,34.81,57.04658,
-tatoeba,217647,VanessaSchenkel/unicamp-finetuned-en-to-pt-dataset-ted,cuda,8,5000,"EN: There's no more room in hell.
-PT: Não há mais quartos no inferno. || EN: You know what to do.
-PT: Tu sabes o que fazer.",5000,31693,6.34,1502.89s,0.3006,21.09,-228.20 MB,4934.98,5232.00,22.67,44.28463,
 wmt24pp,998,Helsinki-NLP/opus-mt-tc-big-en-pt,cuda,1,998,"EN: “Three dead, sir” The Sentinel answered. “The rest fled on foot”
 PT: ""Três mortos, Senhor."", respondeu o Sentinel. ""O resto fugiu a pé."" || EN: “Lieutenant Nemic…Lieutenant Valturi…” He said Cohren was slower, glancing at Cohren’s pistol holster before glancing up again. “I assume that the company is ready”
 PT: ""Tenente Nemic... Tenente Valturi..."". ele disse. Cohren estava mais lento, e o capitão olhou para o coldre da pistola de Cohren, antes de olhar nos olhos dele novamente. ""Eu presumo que a companhia esteja pronta.""",998,32885,32.95,922.36s,0.9242,35.65,-1936.48 MB,4934.98,5546.00,33.71,58.85693,
