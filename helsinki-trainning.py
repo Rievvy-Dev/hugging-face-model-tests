@@ -241,6 +241,7 @@ def main():
     parser.add_argument("--calib_samples", type=int, default=4096, help="Exemplos para calibração")
     parser.add_argument("--max_eval", type=int, default=5000, help="Limite do conjunto de avaliação")
     parser.add_argument("--save_total_limit", type=int, default=3, help="Quantos checkpoints manter")
+    parser.add_argument("--extra_csv", type=str, default=None, help="CSV científico com colunas en,pt (ou source,target) para concatenar ao treino")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -249,6 +250,20 @@ def main():
     # Carregar datasets brutos
     # -------------------------
     split = load_two_datasets(max_ted=args.max_ted, max_tatoeba=args.max_tatoeba)
+
+    if args.extra_csv and os.path.isfile(args.extra_csv):
+        print("[+] Carregando corpus científico (CSV):", args.extra_csv)
+        from datasets import load_dataset as load_ds
+        extra = load_ds("csv", data_files={"train": args.extra_csv}, split="train")
+        # Normalizar para {"translation": {"en": ..., "pt": ...}}
+        def _row_to_translation(ex):
+            en = ex.get("en") or ex.get("source") or ex.get("English") or ""
+            pt = ex.get("pt") or ex.get("target") or ex.get("Portuguese") or ""
+            return {"translation": {"en": str(en).strip(), "pt": str(pt).strip()}}
+        extra = extra.map(_row_to_translation, remove_columns=extra.column_names)
+        extra = extra.filter(lambda ex: ex["translation"]["en"] and ex["translation"]["pt"])
+        split["train"] = concatenate_datasets([split["train"], extra])
+        print(f"    Corpus científico: {len(extra)} pares. Train total: {len(split['train'])}")
 
     # Limita eval para acelerar avaliação por época
     if args.max_eval and len(split["test"]) > args.max_eval:

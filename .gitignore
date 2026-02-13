@@ -1,1 +1,26 @@
+# Modelos treinados / checkpoints
 /models
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Logs de debug / temporarios
+run_debug.log
+run_output.log
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Cache HuggingFace (opcional - descomente se nao quiser versionar)
+# ~/.cache/huggingface/
