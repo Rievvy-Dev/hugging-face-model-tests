@@ -1,1 +1,0 @@
-Dataset,Tamanho Real,Modelo,Device,Batch Size,Tamanho Dataset (usado),Exemplos do Dataset,Total de Sentenças,Total de Palavras,Média Palavras por Sentença,Tempo Total,Tempo por Sentença (s),Palavras por Segundo,Uso de Memória (RAM),Memória GPU Alocada (MB),Memória GPU Reservada (MB),BLEU,chr-F,Erro

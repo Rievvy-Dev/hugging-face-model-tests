@@ -1,5 +1,0 @@
-Dataset,Tamanho Real,Modelo,Device,Batch Size,BLEU,chr-F,Tempo (s)
-ted_talks,1000000,opus-mt-en-pt-finetuned,cuda,1,37.70,59.8675,1109.53
-tatoeba,217647,opus-mt-en-pt-finetuned,cuda,8,53.51,72.0446,279.03
-wmt24pp,998,opus-mt-en-pt-finetuned,cuda,1,33.59,58.4751,501.03
-paracrawl,,opus-mt-en-pt-finetuned,cuda,1,40.09,63.6664,1885.37

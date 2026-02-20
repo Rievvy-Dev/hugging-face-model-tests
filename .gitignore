@@ -24,3 +24,6 @@ Thumbs.db
 
 # Cache HuggingFace (opcional - descomente se nao quiser versionar)
 # ~/.cache/huggingface/
+
+checkpoints
+finetuning/abstracts-datasets
