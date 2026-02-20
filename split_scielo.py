@@ -10,7 +10,7 @@ ABSTRACTS_FILE = "finetuning/abstracts-datasets/abstracts_scielo.csv"
 TRAIN_CSV = "finetuning/abstracts-datasets/scielo_abstracts_train.csv"
 TEST_CSV = "finetuning/abstracts-datasets/scielo_abstracts_test.csv"
 
-TRAIN_SAMPLES = 200_000
+TRAIN_SAMPLES = 80_000
 TEST_SAMPLES = 20_000
 
 def split_scielo():

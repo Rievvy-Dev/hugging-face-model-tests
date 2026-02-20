@@ -20,7 +20,7 @@ SCIELO_VAL_CSV = "finetuning/abstracts-datasets/scielo_abstracts_val.csv"      #
 SCIELO_TEST_CSV = "finetuning/abstracts-datasets/scielo_abstracts_test.csv"    # Teste (never seen)
 
 # Padrões de divisão padrão
-DEFAULT_TRAIN_SAMPLES = 200_000
+DEFAULT_TRAIN_SAMPLES = 80_000
 DEFAULT_VAL_SAMPLES = 20_000
 DEFAULT_TEST_SAMPLES = 20_000
 
