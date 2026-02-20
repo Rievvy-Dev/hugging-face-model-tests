@@ -55,7 +55,8 @@ def _bertscore_available():
 def compute_metrics(dataset, model, tokenizer, batch_size, dataset_name, model_name, device=None):
     """Retorna (bleu_score, chrf_score, comet_score, bertscore_f1, elapsed, erro_msg)."""
     device = device or config.device
-    model.eval()
+    if hasattr(model, "eval"):
+        model.eval()
     references, hypotheses, sources = [], [], []
     num_examples = len(dataset)
     erro_msg = ""
@@ -90,19 +91,71 @@ def compute_metrics(dataset, model, tokenizer, batch_size, dataset_name, model_n
             erro_msg += f" | Estrutura inesperada em idx {start_idx}"
             pbar.update(batch_size)
             continue
-
         try:
-            inputs = tokenizer(srcs, return_tensors="pt", padding=True, truncation=True, max_length=128)
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-            with torch.no_grad():
-                if is_nllb or is_m2m:
-                    out = model.generate(**inputs, forced_bos_token_id=forced_bos_token_id)
-                else:
-                    out = model.generate(**inputs)
-            batch_hyps = [str(tokenizer.decode(t, skip_special_tokens=True)).strip() or " " for t in out]
-            hypotheses.extend(batch_hyps)
-            references.extend([[str(t).strip() or " "] for t in tgts])
-            sources.extend([str(s).strip() or " " for s in srcs])
+            # Special-case: QuickMT translator (no HF tokenizer) — tokenizer is None
+            if tokenizer is None:
+                beam = getattr(config, "QUICKMT_BEAM_SIZE", 5)
+                try:
+                    # quickmt.Translator is callable (Translator(srcs, beam_size=...))
+                    if hasattr(model, "__call__"):
+                        out = model(srcs, beam_size=beam)
+                        if isinstance(out, list):
+                            batch_hyps = [str(h).strip() or " " for h in out]
+                        else:
+                            batch_hyps = [str(out).strip() or " "]
+                    # ctranslate2.Translator: use translate_batch
+                    elif hasattr(model, "translate_batch"):
+                        try:
+                            results = model.translate_batch(srcs, beam_size=beam)
+                        except TypeError:
+                            # some versions expect iterable of lists
+                            results = model.translate_batch([[s] for s in srcs], beam_size=beam)
+                        batch_hyps = []
+                        for item in results:
+                            hyp_text = None
+                            # result may be a list of hypotheses
+                            if isinstance(item, (list, tuple)) and item:
+                                first = item[0]
+                                if isinstance(first, dict):
+                                    # dict with 'hypothesis' or 'tokens' or 'translation'
+                                    if "hypothesis" in first:
+                                        hyp_text = first.get("hypothesis")
+                                    elif "tokens" in first:
+                                        hyp_text = " ".join(first.get("tokens", []))
+                                    elif "translation" in first:
+                                        hyp_text = first.get("translation")
+                                elif isinstance(first, str):
+                                    hyp_text = first
+                            elif isinstance(item, dict):
+                                if "hypotheses" in item and item["hypotheses"]:
+                                    hyp = item["hypotheses"][0]
+                                    hyp_text = hyp if isinstance(hyp, str) else str(hyp)
+                            if hyp_text is None:
+                                hyp_text = str(item)
+                            batch_hyps.append(hyp_text.strip() or " ")
+                    else:
+                        raise RuntimeError("Unknown translator object: cannot translate.")
+
+                    hypotheses.extend(batch_hyps)
+                    references.extend([[str(t).strip() or " "] for t in tgts])
+                    sources.extend([str(s).strip() or " " for s in srcs])
+                except Exception as ee:
+                    erro_msg += f" | QuickMT erro idx {start_idx}: {ee}"
+                    hypotheses.extend([" "] * len(srcs))
+                    references.extend([[str(t).strip() or " "] for t in tgts])
+                    sources.extend([str(s).strip() or " " for s in srcs])
+            else:
+                inputs = tokenizer(srcs, return_tensors="pt", padding=True, truncation=True, max_length=128)
+                inputs = {k: v.to(device) for k, v in inputs.items()}
+                with torch.no_grad():
+                    if is_nllb or is_m2m:
+                        out = model.generate(**inputs, forced_bos_token_id=forced_bos_token_id)
+                    else:
+                        out = model.generate(**inputs)
+                batch_hyps = [str(tokenizer.decode(t, skip_special_tokens=True)).strip() or " " for t in out]
+                hypotheses.extend(batch_hyps)
+                references.extend([[str(t).strip() or " "] for t in tgts])
+                sources.extend([str(s).strip() or " " for s in srcs])
         except RuntimeError as e:
             if "out of memory" in str(e).lower():
                 print(f"[!] OOM em idx {start_idx}, pulando batch...")
@@ -125,7 +178,8 @@ def compute_metrics(dataset, model, tokenizer, batch_size, dataset_name, model_n
 
     # Liberar VRAM antes de carregar COMET e BERTScore (RTX 2050 = 4GB, não cabe tudo junto)
     print("[INFO] Liberando modelo de tradução da GPU para calcular COMET/BERTScore...")
-    model.cpu()
+    if hasattr(model, "cpu"):
+        model.cpu()
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -166,7 +220,8 @@ def compute_metrics(dataset, model, tokenizer, batch_size, dataset_name, model_n
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-    # Mover modelo de tradução de volta para GPU para o próximo dataset
-    model.to(device)
+    # Mover modelo de tradução de volta para GPU para o próximo dataset (quando aplicável)
+    if hasattr(model, "to"):
+        model.to(device)
 
     return bleu_score, chrf_score, comet_score, bertscore_f1, elapsed, erro_msg

@@ -55,6 +55,8 @@ def evaluate_model_on_dataset(
         gpu_memory_allocated = torch.cuda.memory_allocated() / (1024 ** 2) if torch.cuda.is_available() else 0
         gpu_memory_reserved = torch.cuda.memory_reserved() / (1024 ** 2) if torch.cuda.is_available() else 0
 
+        # Use absolute memory after (MB) to avoid negative deltas caused by GC
+        memory_after_mb = memory_after / (1024 * 1024)
         tempo_por_sentenca = elapsed_time / num_sentences if num_sentences else 0.0
         palavras_por_segundo = (num_words / elapsed_time) if elapsed_time > 0 else 0.0
 
@@ -66,7 +68,7 @@ def evaluate_model_on_dataset(
                 dataset_name, total_real, model_name, device, batch_size, len(dataset),
                 exemplos_do_dataset, num_sentences, num_words, f"{media_palavras:.2f}",
                 f"{elapsed_time:.2f}s", f"{tempo_por_sentenca:.4f}", f"{palavras_por_segundo:.2f}",
-                f"{(memory_after - memory_before) / (1024 * 1024):.2f} MB",
+                f"{memory_after_mb:.2f} MB",
                 f"{gpu_memory_allocated:.2f}", f"{gpu_memory_reserved:.2f}",
                 f"{bleu_score:.2f}", f"{chrf_score:.5f}", comet_str, bs_str, erro_msg
             ]

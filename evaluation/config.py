@@ -24,6 +24,15 @@ MODEL_NAMES = [
     "aimped/nlp-health-translation-base-en-pt",
 ]
 
+# QuickMT (CTranslate2) model - evaluated last
+QUICKMT_MODEL = "quickmt/quickmt-en-pt"
+
+# Beam size for QuickMT translator
+QUICKMT_BEAM_SIZE = 5
+
+# Add quickmt to the list of models to evaluate (at the end)
+MODEL_NAMES.append(QUICKMT_MODEL)
+
 DANHSF_MODEL = "danhsf/m2m100_418M-finetuned-kde4-en-to-pt_BR"
 
 # Saída: pasta e nomes de arquivos
