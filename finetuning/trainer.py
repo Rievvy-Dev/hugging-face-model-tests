@@ -142,10 +142,6 @@ def finetune_model(model_name,
     print("     Validação: 0 exemplos\n")
     
     # Training arguments com suporte a resume
-    evaluation_strategy = "no"
-    save_strategy = "epoch"
-    load_best = False
-
     training_args = Seq2SeqTrainingArguments(
         output_dir=output_dir,
         overwrite_output_dir=False,  # Manter checkpoints
@@ -155,10 +151,9 @@ def finetune_model(model_name,
         learning_rate=lr,
         warmup_steps=config.DEFAULT_WARMUP_STEPS,
         weight_decay=0.01,
-        evaluation_strategy=evaluation_strategy,
-        save_strategy=save_strategy,
+        save_strategy="epoch",
         save_total_limit=2,  # Manter apenas 2 checkpoints
-        load_best_model_at_end=load_best,
+        load_best_model_at_end=False,
         metric_for_best_model=None,
         logging_steps=100,
         predict_with_generate=True,
