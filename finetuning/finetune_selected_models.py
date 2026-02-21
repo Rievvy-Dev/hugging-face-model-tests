@@ -123,7 +123,7 @@ def main():
     # Preparar dados (splits train/val/test)
     if not args.skip_prepare:
         print("📊 Preparando dados para fine-tuning...\n")
-        train_csv, val_csv, test_csv = datasets.prepare_evaluation_csv(
+        train_csv, val_csv, test_csv = data_utils.prepare_evaluation_csv(
             abstracts_file=args.abstracts,
             train_csv=config.SCIELO_TRAIN_CSV,
             val_csv=config.SCIELO_VAL_CSV,

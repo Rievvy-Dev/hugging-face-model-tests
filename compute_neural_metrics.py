@@ -11,7 +11,6 @@ Uso:
 import os
 import sys
 import torch
-import csv
 from tqdm import tqdm
 
 # Instalar se necessário: 
@@ -54,56 +53,55 @@ def translate_batch(model, tokenizer, sources, batch_size=2):
     return predictions
 
 
-def calculate_comet(predictions, references, batch_size=4):
+def calculate_comet(predictions, references, sources, batch_size=4, device=None):
     """Calcula COMET."""
     print("     📊 Calculando COMET...")
-    
+
     try:
-        from comet import load_from_checkpoint
-        
-        # Modelo rápido
-        comet_model = load_from_checkpoint("Unbabel/wmt22-comet-da")
-        
-        # Preparar dados
-        data = []
-        for pred, ref in zip(predictions, references):
-            data.append({
-                "src": "",
-                "mt": pred,
-                "ref": ref
-            })
-        
-        # Computar
-        model_output = comet_model.predict(
-            data, 
-            batch_size=batch_size, 
-            gpus=1 if torch.cuda.is_available() else 0
-        )
-        
-        scores = model_output.scores
-        mean_score = sum(scores) / len(scores)
-        
-        print(f"        ✅ COMET: {mean_score:.4f}")
-        return mean_score
-        
+        import comet
+        from comet.models import load_from_checkpoint
+
+        model_path = comet.download_model("Unbabel/wmt22-comet-da")
+        comet_model = load_from_checkpoint(model_path)
+        comet_model.eval()
+
+        refs_flat = [r[0] if isinstance(r, list) else r for r in references]
+        data = [{"src": s, "mt": h, "ref": r} for s, h, r in zip(sources, predictions, refs_flat)]
+
+        gpus = 1 if (device and "cuda" in str(device)) else 0
+        output = comet_model.predict(data, batch_size=batch_size, gpus=gpus, progress_bar=False, num_workers=0)
+        comet_score = float(output.system_score)
+
+        print(f"        ✅ COMET: {comet_score:.4f}")
+        return comet_score
+
     except Exception as e:
         print(f"        ❌ Erro COMET: {e}")
         return None
 
 
-def calculate_bertscore(predictions, references, batch_size=8):
-    """Calcula BERTScore."""
+def calculate_bertscore(predictions, references, batch_size=2, device=None):
+    """
+    Calcula BERTScore.
+    
+    Args:
+        predictions: list de strings
+        references: list de strings  
+        batch_size: Batch size
+    """
     print("     📊 Calculando BERTScore...")
     
     try:
         from bert_score import score
         
+        ref_sample = [r[0] if isinstance(r, list) else r for r in references]
+        
         precision, recall, f1 = score(
             predictions,
-            references,
+            ref_sample,
             lang="pt",
             batch_size=batch_size,
-            device=config.device,
+            device=device or "cpu",
             verbose=False
         )
         
@@ -143,7 +141,7 @@ def main():
     parser.add_argument(
         "--metric_batch_size",
         type=int,
-        default=4,
+        default=2,
         help="Batch size para métricas COMET/BERTScore"
     )
     
@@ -180,10 +178,27 @@ def main():
     print(f"\n  🔄 Traduzindo {len(sources):,} exemplos...\n")
     predictions = translate_batch(model, tokenizer, sources, batch_size=args.batch_size)
     
+    # Liberar VRAM do modelo de traducao antes de COMET/BERTScore
+    if hasattr(model, "cpu"):
+        model.cpu()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     # Calcular métricas neurais
     print(f"\n  📈 Calculando métricas neurais...\n")
-    comet = calculate_comet(predictions, references, batch_size=args.metric_batch_size)
-    bertscore = calculate_bertscore(predictions, references, batch_size=args.metric_batch_size)
+    comet = calculate_comet(
+        predictions,
+        references,
+        sources,
+        batch_size=args.metric_batch_size,
+        device=config.device,
+    )
+    bertscore = calculate_bertscore(
+        predictions,
+        references,
+        batch_size=2,
+        device=config.device,
+    )
     
     print(f"\n{'='*80}")
     print(f"  ✅ RESULTADO")

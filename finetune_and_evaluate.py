@@ -83,7 +83,7 @@ def main():
         print("Execute primeiro: python prepare_scielo_dataset.py")
         sys.exit(1)
 
-    train_csv, val_csv, test_csv = datasets.prepare_evaluation_csv(
+    train_csv, val_csv, test_csv = data_utils.prepare_evaluation_csv(
         abstracts_file=args.abstracts,
         train_csv=config.SCIELO_TRAIN_CSV,
         val_csv=config.SCIELO_VAL_CSV,
