@@ -101,7 +101,6 @@ def main():
             result = trainer.finetune_model(
                 model_name=model_name,
                 train_csv=train_csv,
-                val_csv=val_csv,
                 output_dir=f"./models/finetuned-scielo/{model_name}",
                 epochs=args.epochs,
                 batch_size=args.batch_size,

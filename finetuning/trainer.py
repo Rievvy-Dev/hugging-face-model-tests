@@ -88,7 +88,6 @@ def prepare_dataset_for_training(csv_file, tokenizer, model_name, max_samples=No
 
 def finetune_model(model_name, 
                    train_csv=config.SCIELO_TRAIN_CSV,
-                   val_csv=config.SCIELO_VAL_CSV,
                    output_dir=None,
                    epochs=config.DEFAULT_EPOCHS,
                    batch_size=config.DEFAULT_BATCH_SIZE,
@@ -102,7 +101,6 @@ def finetune_model(model_name,
     Args:
         model_name: Nome do modelo ('helsinki' ou 'm2m100')
         train_csv: Path ao CSV de treino
-        val_csv: Path ao CSV de validação
         output_dir: Diretório para salvar modelo fine-tuned
         epochs: Número de épocas
         batch_size: Batch size para treino
@@ -124,7 +122,6 @@ def finetune_model(model_name,
     
     print(f"  📍 Configuração:")
     print(f"     ├─ Treino: {train_csv}")
-    print(f"     ├─ Validação: {val_csv}")
     print(f"     ├─ Epochs: {epochs}")
     print(f"     ├─ Batch size: {batch_size}")
     print(f"     ├─ Learning rate: {lr}")
@@ -137,15 +134,18 @@ def finetune_model(model_name,
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
     
-    # Preparar datasets
+    # Preparar dataset
     print(f"\n  📚 Preparando datasets...")
     train_dataset = prepare_dataset_for_training(train_csv, tokenizer, model_name)
-    eval_dataset = prepare_dataset_for_training(val_csv, tokenizer, model_name)
     
     print(f"     Treino: {len(train_dataset)} exemplos")
-    print(f"     Validação: {len(eval_dataset)} exemplos\n")
+    print("     Validação: 0 exemplos\n")
     
     # Training arguments com suporte a resume
+    evaluation_strategy = "no"
+    save_strategy = "epoch"
+    load_best = False
+
     training_args = Seq2SeqTrainingArguments(
         output_dir=output_dir,
         overwrite_output_dir=False,  # Manter checkpoints
@@ -155,11 +155,11 @@ def finetune_model(model_name,
         learning_rate=lr,
         warmup_steps=config.DEFAULT_WARMUP_STEPS,
         weight_decay=0.01,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
+        evaluation_strategy=evaluation_strategy,
+        save_strategy=save_strategy,
         save_total_limit=2,  # Manter apenas 2 checkpoints
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
+        load_best_model_at_end=load_best,
+        metric_for_best_model=None,
         logging_steps=100,
         predict_with_generate=True,
         optim="adamw_torch",
@@ -172,7 +172,7 @@ def finetune_model(model_name,
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        eval_dataset=None,
         tokenizer=tokenizer,
     )
     

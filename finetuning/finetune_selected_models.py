@@ -114,30 +114,15 @@ def main():
     print("  FINE-TUNING DE MODELOS DE TRADUÇÃO EN→PT")
     print("="*80 + "\n")
 
-    # Verificar arquivo de dados
-    if not args.skip_prepare and not os.path.exists(args.abstracts):
-        print(f"[ERRO] Arquivo não encontrado: {args.abstracts}")
-        print("Execute primeiro: python prepare_scielo_dataset.py")
+    # Usar somente o CSV de treino
+    train_csv = config.SCIELO_TRAIN_CSV
+    if not os.path.exists(train_csv):
+        print(f"[ERRO] Arquivo de treino nao encontrado: {train_csv}")
+        print("Gere o CSV de treino antes de rodar o fine-tuning.")
         sys.exit(1)
 
-    # Preparar dados (splits train/val/test)
-    if not args.skip_prepare:
-        print("📊 Preparando dados para fine-tuning...\n")
-        train_csv, val_csv, test_csv = data_utils.prepare_evaluation_csv(
-            abstracts_file=args.abstracts,
-            train_csv=config.SCIELO_TRAIN_CSV,
-            val_csv=config.SCIELO_VAL_CSV,
-            test_csv=config.SCIELO_TEST_CSV,
-            train_samples=args.train_samples,
-            val_samples=args.val_samples,
-            test_samples=args.test_samples,
-        )
-    else:
-        train_csv = config.SCIELO_TRAIN_CSV
-        val_csv = config.SCIELO_VAL_CSV
-        print(f"✅ Usando dados existentes:")
-        print(f"   - Treino: {train_csv}")
-        print(f"   - Validação: {val_csv}\n")
+    print("✅ Usando dados existentes:")
+    print(f"   - Treino: {train_csv}\n")
 
     # Determinar quais modelos treinar
     if args.model:
@@ -172,7 +157,6 @@ def main():
         result = trainer.finetune_model(
             model_name=model_name,
             train_csv=train_csv,
-            val_csv=val_csv,
             output_dir=output_dir,
             epochs=args.epochs,
             batch_size=args.batch_size,
