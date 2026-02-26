@@ -5,6 +5,10 @@ import torch
 from sacrebleu import BLEU, CHRF
 from . import config
 
+# Cache para modelos COMET e BERTScore
+_comet_model = None
+_bertscore_available = None
+
 
 def calculate_bleu(predictions, references, lowercase=False):
     """
@@ -103,3 +107,72 @@ def config_model_lang_code(model_name):
     """Helper para verificar se modelo requer código de idioma."""
     from .models import model_require_lang_code
     return model_require_lang_code(model_name)
+
+
+def calculate_comet(predictions, references, sources):
+    """
+    Calcula COMET score (da Unbabel).
+    
+    Args:
+        predictions: list de strings (traduções)
+        references: list de strings (referência)
+        sources: list de strings (original em inglês)
+    
+    Returns:
+        float: COMET score (0-1)
+    """
+    try:
+        from comet import download_model, load_from_checkpoint
+        
+        global _comet_model
+        if _comet_model is None:
+            print("   📥 Baixando modelo COMET...")
+            model_path = download_model("Unbabel/wmt22-comet-da")
+            _comet_model = load_from_checkpoint(model_path)
+            _comet_model.eval()
+        
+        # Preparar dados no formato esperado
+        data = [
+            {"src": src, "mt": pred, "ref": ref}
+            for src, pred, ref in zip(sources, predictions, references)
+        ]
+        
+        print("   🔄 Calculando COMET...")
+        output = _comet_model.predict(data, batch_size=2, gpus=1 if torch.cuda.is_available() else 0)
+        
+        return float(output.system_score)
+    
+    except Exception as e:
+        print(f"   ⚠️  COMET falhou: {e}")
+        return None
+
+
+def calculate_bertscore(predictions, references):
+    """
+    Calcula BERTScore F1.
+    
+    Args:
+        predictions: list de strings (traduções)
+        references: list de strings (referência)
+    
+    Returns:
+        float: BERTScore F1 médio (0-1)
+    """
+    try:
+        from bert_score import score
+        
+        print("   🔄 Calculando BERTScore...")
+        # Usar modelo multilíngue para português
+        P, R, F1 = score(
+            predictions, 
+            references, 
+            lang="pt",
+            batch_size=2,
+            device=config.device
+        )
+        
+        return float(F1.mean())
+    
+    except Exception as e:
+        print(f"   ⚠️  BERTScore falhou: {e}")
+        return None

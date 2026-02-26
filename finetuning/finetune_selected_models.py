@@ -89,6 +89,36 @@ def parse_args():
         default=config.DEFAULT_LR,
         help=f"Learning rate (default: {config.DEFAULT_LR})"
     )
+    parser.add_argument(
+        "--max_seq_len",
+        type=int,
+        default=config.DEFAULT_MAX_SEQ_LEN,
+        help=f"Max sequence length (default: {config.DEFAULT_MAX_SEQ_LEN})"
+    )
+    parser.add_argument(
+        "--grad_accum_steps",
+        type=int,
+        default=config.DEFAULT_GRAD_ACCUM_STEPS,
+        help=f"Gradient accumulation steps (default: {config.DEFAULT_GRAD_ACCUM_STEPS})"
+    )
+    parser.add_argument(
+        "--fp16",
+        action="store_true",
+        default=config.DEFAULT_FP16,
+        help="Ativa mixed precision (fp16) se houver GPU"
+    )
+    parser.add_argument(
+        "--max_steps",
+        type=int,
+        default=None,
+        help="Número máximo de steps (sobrescreve epochs se especificado)"
+    )
+    parser.add_argument(
+        "--early_stopping_patience",
+        type=int,
+        default=config.DEFAULT_EARLY_STOPPING_PATIENCE,
+        help=f"Épocas sem melhora antes de parar (default: {config.DEFAULT_EARLY_STOPPING_PATIENCE})"
+    )
 
     # Controle de execução
     parser.add_argument(
@@ -137,6 +167,11 @@ def main():
     print(f"   - Épocas: {args.epochs}")
     print(f"   - Batch size: {args.batch_size}")
     print(f"   - Learning rate: {args.lr}")
+    print(f"   - Max seq len: {args.max_seq_len}")
+    print(f"   - Grad accum steps: {args.grad_accum_steps}")
+    print(f"   - FP16: {args.fp16}")
+    if args.max_steps:
+        print(f"   - Max steps: {args.max_steps}")
     print(f"   - Device: {config.device}")
     
     if args.resume_from:
@@ -161,6 +196,11 @@ def main():
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            max_seq_len=args.max_seq_len,
+            grad_accum_steps=args.grad_accum_steps,
+            fp16=args.fp16,
+            max_steps=args.max_steps,
+            early_stopping_patience=args.early_stopping_patience,
             resume_from_checkpoint=args.resume_from,
         )
 

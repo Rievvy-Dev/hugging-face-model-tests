@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """Fine-tuning com suporte a checkpoints e resume."""
 import os
+import inspect
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
+    DataCollatorForSeq2Seq,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
 )
@@ -13,7 +15,7 @@ from . import config
 from .io_utils import checkpoint_exists, read_checkpoint_status
 
 
-def prepare_dataset_for_training(csv_file, tokenizer, model_name, max_samples=None):
+def prepare_dataset_for_training(csv_file, tokenizer, model_name, max_samples=None, max_seq_len=None):
     """
     Prepara dataset para fine-tuning.
     
@@ -41,6 +43,8 @@ def prepare_dataset_for_training(csv_file, tokenizer, model_name, max_samples=No
     # Verificar se precisa lang code (M2M100)
     requires_lang = "m2m100" in model_name.lower()
     
+    max_seq_len = max_seq_len or config.DEFAULT_MAX_SEQ_LEN
+
     def process_data(examples):
         """Processa exemplos para HF Dataset."""
         inputs = []
@@ -59,12 +63,27 @@ def prepare_dataset_for_training(csv_file, tokenizer, model_name, max_samples=No
                 targets.append(tgt)
         
         # Tokenizar
-        model_inputs = tokenizer(inputs, max_length=256, truncation=True, padding="max_length")
+        model_inputs = tokenizer(
+            inputs,
+            max_length=max_seq_len,
+            truncation=True,
+            padding="max_length",
+        )
         
-        # Tokenizar targets
-        labels = tokenizer(targets, max_length=256, truncation=True, padding="max_length")
-        
-        model_inputs["labels"] = labels["input_ids"]
+        # Tokenizar targets e mascarar PAD para nao contribuir na loss
+        labels = tokenizer(
+            targets,
+            max_length=max_seq_len,
+            truncation=True,
+            padding="max_length",
+        )
+        pad_id = tokenizer.pad_token_id
+        masked_labels = [
+            [(token if token != pad_id else -100) for token in seq]
+            for seq in labels["input_ids"]
+        ]
+
+        model_inputs["labels"] = masked_labels
         
         return model_inputs
     
@@ -88,10 +107,16 @@ def prepare_dataset_for_training(csv_file, tokenizer, model_name, max_samples=No
 
 def finetune_model(model_name, 
                    train_csv=config.SCIELO_TRAIN_CSV,
+                   val_csv=config.SCIELO_VAL_CSV,
                    output_dir=None,
                    epochs=config.DEFAULT_EPOCHS,
                    batch_size=config.DEFAULT_BATCH_SIZE,
                    lr=config.DEFAULT_LR,
+                   max_seq_len=config.DEFAULT_MAX_SEQ_LEN,
+                   grad_accum_steps=config.DEFAULT_GRAD_ACCUM_STEPS,
+                   fp16=config.DEFAULT_FP16,
+                   max_steps=None,
+                   early_stopping_patience=config.DEFAULT_EARLY_STOPPING_PATIENCE,
                    resume_from_checkpoint=None):
     """
     Fine-tuna modelo no dataset Scielo com suporte a resume.
@@ -122,9 +147,13 @@ def finetune_model(model_name,
     
     print(f"  📍 Configuração:")
     print(f"     ├─ Treino: {train_csv}")
+    print(f"     ├─ Validacao: {val_csv}")
     print(f"     ├─ Epochs: {epochs}")
     print(f"     ├─ Batch size: {batch_size}")
     print(f"     ├─ Learning rate: {lr}")
+    print(f"     ├─ Max seq len: {max_seq_len}")
+    print(f"     ├─ Grad accum steps: {grad_accum_steps}")
+    print(f"     ├─ FP16: {fp16}")
     print(f"     └─ Output: {output_dir}\n")
     
     # Carregar modelo e tokenizador
@@ -134,18 +163,42 @@ def finetune_model(model_name,
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
     
-    # Preparar dataset
+    # Gradient checkpointing para reduzir memoria
+    if hasattr(model, "gradient_checkpointing_enable"):
+        model.gradient_checkpointing_enable()
+        print(f"     ✅ Gradient checkpointing ativado")
+    
+    # Preparar datasets
     print(f"\n  📚 Preparando datasets...")
-    train_dataset = prepare_dataset_for_training(train_csv, tokenizer, model_name)
+    train_dataset = prepare_dataset_for_training(
+        train_csv,
+        tokenizer,
+        model_name,
+        max_seq_len=max_seq_len,
+    )
+    eval_dataset = None
+    if val_csv and os.path.exists(val_csv):
+        eval_dataset = prepare_dataset_for_training(
+            val_csv,
+            tokenizer,
+            model_name,
+            max_seq_len=max_seq_len,
+        )
+    else:
+        print("     ⚠️  Validação nao encontrada. Seguindo sem eval_dataset.")
     
     print(f"     Treino: {len(train_dataset)} exemplos")
-    print("     Validação: 0 exemplos\n")
+    print(f"     Validação: {len(eval_dataset) if eval_dataset is not None else 0} exemplos\n")
     
-    # Training arguments com suporte a resume
-    training_args = Seq2SeqTrainingArguments(
+    # Training arguments com suporte a resume e early stopping
+    eval_strategy = "epoch" if eval_dataset is not None else "no"
+    use_fp16 = fp16 and config.device == "cuda"
+    use_early_stopping = eval_dataset is not None and early_stopping_patience > 0
+    training_args_kwargs = dict(
         output_dir=output_dir,
         overwrite_output_dir=False,  # Manter checkpoints
-        num_train_epochs=epochs,
+        num_train_epochs=epochs if max_steps is None else 1,
+        max_steps=max_steps if max_steps is not None else -1,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         learning_rate=lr,
@@ -153,22 +206,48 @@ def finetune_model(model_name,
         weight_decay=0.01,
         save_strategy="epoch",
         save_total_limit=2,  # Manter apenas 2 checkpoints
-        load_best_model_at_end=False,
-        metric_for_best_model=None,
+        load_best_model_at_end=eval_dataset is not None,
+        metric_for_best_model="eval_loss" if eval_dataset is not None else None,
+        greater_is_better=False,
+        gradient_accumulation_steps=grad_accum_steps,
+        fp16=use_fp16,
         logging_steps=100,
         predict_with_generate=True,
         optim="adamw_torch",
         seed=config.SEED,
         report_to=[],  # Sem wandb/tensorboard
     )
+    init_params = inspect.signature(Seq2SeqTrainingArguments.__init__).parameters
+    if "evaluation_strategy" in init_params:
+        training_args_kwargs["evaluation_strategy"] = eval_strategy
+    else:
+        training_args_kwargs["eval_strategy"] = eval_strategy
+
+    training_args = Seq2SeqTrainingArguments(
+        **training_args_kwargs
+    )
+
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
+    
+    # Early stopping callback
+    callbacks = []
+    if use_early_stopping:
+        from transformers import EarlyStoppingCallback
+        callbacks.append(EarlyStoppingCallback(
+            early_stopping_patience=early_stopping_patience,
+            early_stopping_threshold=config.DEFAULT_EARLY_STOPPING_THRESHOLD,
+        ))
+        print(f"     ✅ Early stopping ativado (patience={early_stopping_patience})")
     
     # Trainer
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=None,
+        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
+        data_collator=data_collator,
+        callbacks=callbacks,
     )
     
     # Treinar com resume

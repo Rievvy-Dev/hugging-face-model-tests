@@ -11,6 +11,7 @@ print(f"[CONFIG] Device: {device}")
 MODELS = {
     "helsinki": "Helsinki-NLP/opus-mt-tc-big-en-pt",
     "m2m100": "danhsf/m2m100_418M-finetuned-kde4-en-to-pt_BR",
+    "unicamp-t5": "unicamp-dl/translation-en-pt-t5",
 }
 
 # ==================== DADOS SCIELO ====================
@@ -37,16 +38,24 @@ os.makedirs(EVAL_RESUME_DIR, exist_ok=True)
 # ==================== FINE-TUNING ====================
 DEFAULT_EPOCHS = 5
 DEFAULT_BATCH_SIZE = 8
-DEFAULT_EVAL_BATCH_SIZE = 8
+DEFAULT_EVAL_BATCH_SIZE = 4
 DEFAULT_LR = 2e-5
 DEFAULT_WARMUP_STEPS = 500
-DEFAULT_MAX_SEQ_LEN = 256
+DEFAULT_MAX_SEQ_LEN = 128
+DEFAULT_GRAD_ACCUM_STEPS = 1
+DEFAULT_FP16 = False
+DEFAULT_EARLY_STOPPING_PATIENCE = 2
+DEFAULT_EARLY_STOPPING_THRESHOLD = 0.0
 
-# ==================== SAÍDA ====================
+# ==================== SAIDA ====================
 OUTPUT_DIR = "./"
 BEFORE_METRICS_FILE = "scielo_before_finetuning.csv"
 AFTER_METRICS_FILE = "scielo_after_finetuning.csv"
+AFTER_METRICS_EPOCH_TEMPLATE = "scielo_after_finetuning_epoch_{epoch}.csv"
 COMPARISON_REPORT = "SCIENCE_EVALUATION_REPORT.txt"
+
+# ==================== MODELOS FINE-TUNED ====================
+FINETUNED_CHECKPOINTS_ROOT = "./models/finetuned-scielo"
 
 # ==================== MÉTRICAS ====================
 METRICS = ["bleu", "chrf", "comet", "bertscore"]
