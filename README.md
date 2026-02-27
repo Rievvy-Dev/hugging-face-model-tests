@@ -298,6 +298,29 @@ Epoch | eval_loss | Step   | Tendência
 - Early stopping NÃO foi acionado — o modelo ainda estava convergindo
 - A taxa de melhoria desacelera nos epochs finais (~0.0003 por epoch), sugerindo proximidade do ponto ótimo
 
+### Training Loss (média por epoch)
+
+| Epoch | Training Loss (média) | Eval Loss  | Learning Rate (final) |
+|-------|----------------------:|-----------:|----------------------:|
+| 1     | 1.0962                | 1.006836   | 9.54e-06              |
+| 2     | 1.0479                | 0.993096   | 8.69e-06              |
+| 3     | 1.0283                | 0.986074   | 7.85e-06              |
+| 4     | 1.0173                | 0.981832   | 7.00e-06              |
+| 5     | 0.9987                | 0.979202   | 6.08e-06              |
+| 6     | 0.9927                | 0.977226   | 5.23e-06              |
+| 7     | 0.9794                | 0.975687   | 4.39e-06              |
+| 8     | 0.9784                | 0.974656   | 3.46e-06              |
+| 9     | 0.9744                | 0.973745   | 2.62e-06              |
+| 10    | 0.9692                | 0.973330   | 1.77e-06              |
+| 11    | 0.9633                | 0.973035   | 9.26e-07              |
+| 12    | 0.9691                | 0.972978   | 3.08e-09              |
+
+**Observações sobre o treinamento:**
+- Training loss caiu de ~1.10 (epoch 1) para ~0.96 (epoch 12) — redução de 12.5%
+- Learning rate seguiu schedule linear com warmup de 500 steps (pico 1e-5) e decay até ~0
+- Gradient norms estáveis em 0.5–0.9 ao longo de todo o treinamento (sem gradient explosion)
+- Diferença train_loss vs eval_loss pequena (~0.01), indicando ausência de overfitting
+
 ### Detalhes Técnicos do Treinamento
 
 - **Gradient checkpointing**: Reduz consumo de VRAM recalculando ativações intermediárias no backward pass
