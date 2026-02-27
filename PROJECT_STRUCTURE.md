@@ -37,7 +37,7 @@ A estrutura segue a **metodologia de 5 estágios** do pipeline de avaliação e 
 │       ├── abstracts_scielo.csv               Corpus completo (2.7M)
 │       ├── scielo_abstracts_train.csv         18.000 exemplos (treino)
 │       ├── scielo_abstracts_val.csv            2.000 exemplos (validação)
-│       └── scielo_abstracts_test.csv          20.000 exemplos (teste)
+│       └── scielo_abstracts_test.csv           5.000 exemplos (teste)
 │
 ├── 🗂️ STAGE 4: Fine-tuning (unicamp-dl/translation-en-pt-t5)
 │   ├── 🐍 finetuning/finetune_selected_models.py   Script de fine-tuning
@@ -117,7 +117,7 @@ A estrutura segue a **metodologia de 5 estágios** do pipeline de avaliação e 
 | `unicamp-t5/unicamp-t5/model.safetensors` | 4 | Pesos do melhor modelo |
 | `unicamp-t5/unicamp-t5/checkpoint-13500/trainer_state.json` | 4 | Log completo de treinamento (12 epochs) |
 | `evaluation_results/translation_metrics_all.csv` | 1 | Resultados de todos os 6 modelos |
-| `finetuning/abstracts-datasets/scielo_abstracts_test.csv` | 3 | 20k exemplos de teste |
+| `finetuning/abstracts-datasets/scielo_abstracts_test.csv` | 3 | 5k exemplos de teste |
 
 ---
 
@@ -130,7 +130,7 @@ A estrutura segue a **metodologia de 5 estágios** do pipeline de avaliação e 
 2️⃣  Selecionar unicamp-dl/translation-en-pt-t5
     └─ choose_best_model.py
 
-3️⃣  Preparar splits SciELO (18k treino, 2k val, 20k teste)
+3️⃣  Preparar splits SciELO (18k treino, 2k val, 5k teste)
     └─ select_and_test_models.py
 
 4️⃣  Fine-tuning na RTX 4050 (12 epochs, batch=8, grad_accum=2)
