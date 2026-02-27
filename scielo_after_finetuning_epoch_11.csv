@@ -1,0 +1,2 @@
+model,checkpoint,epoch,bleu,chrf,comet,bertscore
+unicamp-t5,checkpoint-12375,11.0,45.509849018479464,70.539132320167,0.8756017054468394,0.9124047756195068

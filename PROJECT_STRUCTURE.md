@@ -1,172 +1,141 @@
-_# 📁 Estrutura Final do Projeto
+# Estrutura do Projeto
 
-## Organização Corrigida
+## Organização por Estágio
 
-A estrutura foi organizada para respeitar a **metodologia de 5 estágios**:
+A estrutura segue a **metodologia de 5 estágios** do pipeline de avaliação e fine-tuning.
 
 ```
 .
-├── 📄 README.md                       ← LEIA ISTO PRIMEIRO!
-├── 📄 QUICK_COMMANDS.md               ← Comandos rápidos
-├── 📄 requirements.txt
-├── 📄 requirements-ml.txt              
+├── 📄 README.md                               ← Documentação principal
+├── 📄 PROJECT_STRUCTURE.md                    ← Este arquivo
+├── 📄 QUICK_COMMANDS.md                       ← Comandos rápidos
+├── 📄 requirements.txt                        ← Dependências gerais
+├── 📄 requirements-ml.txt                     ← Dependências ML
 │
 ├── 🗂️ STAGE 0: Dataset
-│   └── 🐍 prepare_scielo_dataset.py   (gera abstracts_scielo.csv)
+│   └── 🐍 prepare_scielo_dataset.py           Gera abstracts_scielo.csv (2.7M exemplos)
 │
 ├── 🗂️ STAGE 1: Avaliação Inicial (6 modelos × 4 datasets)
-│   ├── 🐍 models-test.py              (5 modelos primários)
-│   ├── 🐍 evaluate_quickmt.py         (6º modelo)
+│   ├── 🐍 models-test.py                     Avalia 5 modelos primários
+│   ├── 🐍 evaluate_quickmt.py                Avalia 6º modelo (QuickMT)
+│   ├── 🐍 compute_neural_metrics.py          Calcula COMET e BERTScore
 │   └── 📊 evaluation_results/
-│       └── translation_metrics_all.csv ← RESULTADO
+│       ├── translation_metrics_all.csv        Consolidado
+│       ├── Helsinki-NLP_opus-mt-tc-big-en-pt.csv
+│       ├── Narrativa_mbart-large-50-finetuned-opus-en-pt-translation.csv
+│       ├── unicamp-dl_translation-en-pt-t5.csv
+│       ├── VanessaSchenkel_unicamp-finetuned-en-to-pt-dataset-ted.csv
+│       ├── danhsf_m2m100_418M-finetuned-kde4-en-to-pt_BR.csv
+│       └── quickmt_quickmt-en-pt.csv
 │
-├── 🗂️ STAGE 2: Seleção dos Melhores
-│   └── 🐍 choose_best_model.py        (Top 2 ranking)
+├── 🗂️ STAGE 2: Seleção do Modelo
+│   ├── 🐍 choose_best_model.py               Ranking por score composto
+│   └── 🐍 show_model_configs.py              Exibe configurações dos modelos
 │
-├── 🗂️ STAGE 3: Preparação de Dados
+├── 🗂️ STAGE 3: Preparação de Dados (Dataset Compacto)
 │   └── 📦 finetuning/abstracts-datasets/
-│       ├── scielo_abstracts_train.csv  (200k)
-│       ├── scielo_abstracts_val.csv    (20k)
-│       └── scielo_abstracts_test.csv   (20k)
+│       ├── abstracts_scielo.csv               Corpus completo (2.7M)
+│       ├── scielo_abstracts_train.csv         18.000 exemplos (treino)
+│       ├── scielo_abstracts_val.csv            2.000 exemplos (validação)
+│       └── scielo_abstracts_test.csv          20.000 exemplos (teste)
 │
-├── 🗂️ STAGE 4: Fine-tuning
-│   └── 🐍 finetuning/finetune_selected_models.py
-│       └── 📂 models/finetuned-scielo/
-│           ├── helena/
-│           └── m2m100/
+├── 🗂️ STAGE 4: Fine-tuning (unicamp-dl/translation-en-pt-t5)
+│   ├── 🐍 finetuning/finetune_selected_models.py   Script de fine-tuning
+│   └── ⭐ unicamp-t5/unicamp-t5/                    Modelo fine-tuned
+│       ├── config.json
+│       ├── generation_config.json
+│       ├── model.safetensors                         Pesos do melhor modelo
+│       ├── tokenizer.json
+│       ├── tokenizer_config.json
+│       ├── spiece.model                              SentencePiece
+│       ├── special_tokens_map.json
+│       ├── checkpoint-12375/                         Epoch 11
+│       └── checkpoint-13500/                         Epoch 12 (best)
+│           ├── model.safetensors
+│           ├── optimizer.pt
+│           ├── scheduler.pt
+│           ├── trainer_state.json                    Log completo
+│           └── training_args.bin
 │
-├── 🗂️ STAGE 5: Avaliação Final & Comparação
-│   ├── 🐍 finetuning/select_and_test_models.py
-│   ├── 🐍 compare_results.py
-│   ├── 📊 evaluation_results/
-│   │   ├── scielo_before_finetuning.csv
-│   │   └── scielo_after_finetuning.csv
-│   └── 📄 SCIENCE_EVALUATION_REPORT.txt ← RESULTADO FINAL
+├── 🗂️ STAGE 5: Avaliação Final e Comparação
+│   ├── 🐍 finetuning/select_and_test_models.py      Avalia base e fine-tuned
+│   ├── 📊 scielo_before_finetuning.csv               Baseline (BLEU=40.06)
+│   ├── 📊 scielo_after_finetuning_epoch_1.csv        Epoch 1
+│   ├── 📊 scielo_after_finetuning_epoch_11.csv       Epoch 11 (BLEU=45.51)
+│   └── 📊 scielo_after_finetuning_epoch_12.csv       Epoch 12 (BLEU=45.51)
 │
 ├── 🗂️ Módulos Core
-│   └── 📦 finetuning/
-│       ├── config.py              (configurações)
-│       ├── models.py              (carregar/salvar)
-│       ├── datasets.py            (preparação dados)
-│       ├── metrics.py             (BLEU, chr-F, COMET, BERTScore)
-│       ├── evaluate.py            (avaliação com progresso)
-│       ├── trainer.py             (Seq2SeqTrainer)
-│       ├── compare.py             (comparação)
-│       ├── io_utils.py            (utilitários)
-│       └── __init__.py
+│   ├── 📦 evaluation/                        Módulo de avaliação (STAGE 1)
+│   │   ├── __init__.py
+│   │   ├── config.py                         Configurações
+│   │   ├── datasets.py                       Datasets públicos
+│   │   ├── metrics.py                        Métricas
+│   │   ├── models_loader.py                  Carregamento de modelos
+│   │   ├── run.py                            Execução
+│   │   ├── io_utils.py                       Utilitários I/O
+│   │   └── fill_missing_metrics.py           Preenchimento
+│   │
+│   └── 📦 finetuning/                        Módulo de fine-tuning (STAGES 3-5)
+│       ├── __init__.py
+│       ├── config.py                          Configurações centralizadas
+│       ├── models.py                          Carregamento/salvamento
+│       ├── data_utils.py                      Preparação de dados
+│       ├── datasets.py                        Dataset handling
+│       ├── metrics.py                         BLEU, chrF, COMET, BERTScore
+│       ├── evaluate.py                        Avaliação com progresso
+│       ├── trainer.py                         Seq2SeqTrainer + loop
+│       ├── compare.py                         Comparação base vs fine-tuned
+│       └── io_utils.py                        Utilitários I/O
 │
-├── 🗂️ Checkpoints (para resumir se interrompido)
-│   └── checkpoints/
+├── 🗂️ Pipeline Integrado
+│   └── 🐍 finetune_and_evaluate.py            Executa STAGES 1-5 automaticamente
+│
+├── 🗂️ Auxiliares
+│   ├── 🐍 check_gpu.py                       Verificação de GPU
+│   ├── 🐍 split_scielo.py                    Divisão manual do dataset
+│   ├── 📂 models-configs/                    Configurações JSON
+│   │   ├── helsink.json
+│   │   └── m2m100.json
+│   ├── 📂 models/finetuned-scielo/           Fine-tunings anteriores
+│   │   └── helsinki/
+│   └── 📂 checkpoints/                       Checkpoints de controle
 │       ├── training/
 │       └── evaluation/
 │
-├── 🗂️ Resultados de Avaliação Anterior
-│   └── evaluation_results/
-│       ├── translation_metrics_all.csv
-│       ├── <modelo>.csv
-│       └── [scielo_before/after_finetuning.csv]
-│
-└── 📊 Dataset Completo
-    └── abstracts_scielo.csv   (2.7M exemplos)
+└── 📦 Arquivos de Modelo Compactado
+    └── unicamp-t5.zip                         Modelo fine-tuned compactado
 ```
 
 ---
 
-## ✅ O que foi Restaurado/Mantido
+## Arquivos Importantes
 
-| Arquivo | Status | Motivo |
-|---------|--------|--------|
-| `models-test.py` | ✅ Mantido | STAGE 1 - avalia 5 modelos |
-| `evaluate_quickmt.py` | ✅ Mantido | STAGE 1 - avalia 6º modelo |
-| `choose_best_model.py` | ✅ Mantido | STAGE 2 - seleciona top 2 |
-| `prepare_scielo_dataset.py` | ✅ Mantido | STAGE 0 - gera dataset |
-| `finetune_and_evaluate.py` | ✅ Mantido | Pipeline integrado (opcional) |
-| `compare_results.py` | ✅ Mantido | STAGE 5 - relatório |
-| `finetuning/select_and_test_models.py` | ✅ Novo | STAGE 3, 5 - testa em SciELO |
-| `finetuning/finetune_selected_models.py` | ✅ Novo | STAGE 4 - fine-tuning |
+| Arquivo | Estágio | Descrição |
+|---------|---------|-----------|
+| `scielo_before_finetuning.csv` | 5 | Métricas baseline: BLEU=40.06 |
+| `scielo_after_finetuning_epoch_12.csv` | 5 | Métricas fine-tuned: BLEU=45.51 |
+| `unicamp-t5/unicamp-t5/model.safetensors` | 4 | Pesos do melhor modelo |
+| `unicamp-t5/unicamp-t5/checkpoint-13500/trainer_state.json` | 4 | Log completo de treinamento (12 epochs) |
+| `evaluation_results/translation_metrics_all.csv` | 1 | Resultados de todos os 6 modelos |
+| `finetuning/abstracts-datasets/scielo_abstracts_test.csv` | 3 | 20k exemplos de teste |
 
 ---
 
-## 📝 Metodologia Simplificada
+## Metodologia Resumida
 
 ```
-1️⃣  Buscar + Separar dados SciELO
-    ├─ prepare_scielo_dataset.py
-    └─ select_and_test_models.py (cria train/val/test)
+1️⃣  Avaliar 6 modelos em datasets públicos
+    └─ models-test.py + evaluate_quickmt.py
 
-2️⃣  Testar modelos base em SciELO
-    └─ select_and_test_models.py (gera scielo_before_finetuning.csv)
+2️⃣  Selecionar unicamp-dl/translation-en-pt-t5
+    └─ choose_best_model.py
 
-3️⃣  Fine-tune dos 2 modelos
-    └─ finetune_selected_models.py (salva checkpoints)
+3️⃣  Preparar splits SciELO (18k treino, 2k val, 20k teste)
+    └─ select_and_test_models.py
 
-4️⃣  Avaliar fine-tuned em SciELO
-    └─ select_and_test_models.py --test_finetuned
+4️⃣  Fine-tuning na RTX 4050 (12 epochs, batch=8, grad_accum=2)
+    └─ finetune_selected_models.py → unicamp-t5/unicamp-t5/
 
-5️⃣  Comparar base vs fine-tuned
-    └─ compare_results.py (gera relatório)
+5️⃣  Avaliar e comparar: BLEU 40.06 → 45.51 (+13.6%)
+    └─ select_and_test_models.py --test_both
 ```
-
----
-
-## 🎯 Cronograma de Execução
-
-```bash
-# 1. Preparar dataset
-python prepare_scielo_dataset.py                           # ~1 min
-
-# 2. Separar dados (automático na próxima etapa)
-# (vai ser criado por select_and_test_models.py)
-
-# 3. Testar modelos base em SciELO
-python finetuning/select_and_test_models.py --skip_prepare # ~3 horas
-
-# 4. Fine-tuning (2 modelos × 5 épocas)
-python finetuning/finetune_selected_models.py --skip_prepare  # ~8-12 horas
-
-# 5. Avaliar e gerar relatório
-python finetuning/select_and_test_models.py --test_both --skip_prepare  # ~3 horas
-python compare_results.py                                 # ~10 seg
-
-# Total: ~15-20 horas (com GPU)
-```
-
----
-
-## 🔑 Pontos-Chave da Metodologia
-
-### ✅ Dados não se sobrepõem
-- Train: 200k (74% dos 240k)
-- Val: 20k (8%)
-- Test: 20k (8% - MESMOS usados em STAGE 1!)
-
-### ✅ Checkpoints permitem retomar
-- STAGE 4: Checkpoints salvos a cada 1/5 da época
-- STAGE 5: CSV armazenam estados intermediários
-
-### ✅ Comparação justa
-- STAGE 1: Testar modelos base nos 20k dados
-- STAGE 5: Testar modelos fine-tuned nos MESMOS 20k dados
-- Delta de BLEU mostra real melhoria
-
-### ✅ Métricas compromete
-- BLEU + chr-F (rápido, já calculado)
-- COMET + BERTScore F1 (neural, mais preciso, mas lento)
-- Score composto (0.30×BLEU + 0.25×chr-F + 0.25×COMET + 0.20×BS)
-
----
-
-## 📚 Para Entender Melhor
-
-1. **Leia primeiro**: [README.md](README.md) - explicação detalhada de cada estágio
-2. **Comandos rápidos**: [QUICK_COMMANDS.md](QUICK_COMMANDS.md) - copy-paste dos comandos
-3. **Ver configurações**: `finetuning/config.py` - ajustar hiperparâmetros
-4. **Help dos scripts**:
-   ```bash
-   python finetuning/finetune_selected_models.py --help
-   python finetuning/select_and_test_models.py --help
-   ```
-
----
-
-**Versão**: 3.0 | **Data**: Fevereiro 2026 | **Status**: ✅ Pronto para usar
