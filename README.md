@@ -138,6 +138,63 @@ Avaliar 6 modelos pré-treinados em 4 datasets públicos para estabelecer baseli
 | **COMET**     | Neural     | 0-1   | Score neural aprendido (Unbabel/wmt22-comet-da)    |
 | **BERTScore** | Neural     | 0-1   | Similaridade semântica via embeddings BERT         |
 
+### Resultados — Média por Modelo (4 datasets)
+
+| #  | Modelo          | BLEU  | chrF  | COMET  | BERTScore | GPU (MB) |
+|----|-----------------|------:|------:|-------:|----------:|---------:|
+| 1  | Helsinki        | 38.01 | 59.89 | 0.8301 | 0.8674    | 904      |
+| 2  | Narrativa mBART | 22.53 | 41.89 | 0.7700 | 0.8398    | 2.340    |
+| 3  | Unicamp-T5      | 15.80 | 33.81 | 0.6812 | 0.7960    | 859      |
+| 4  | VanessaSchenkel | 9.15  | 26.22 | 0.6473 | 0.7895    | 859      |
+| 5  | M2M100          | 22.17 | 47.94 | 0.7581 | 0.8323    | 1.863    |
+| 6  | QuickMT         | 0.00  | 4.13  | 0.2723 | 0.4742    | 9        |
+
+### Resultados Detalhados — Por Dataset
+
+**WMT24++ (998 exemplos, sentenças longas ~33 palavras/sentença)**
+
+| Modelo          | BLEU  | chrF  | COMET  | BERTScore | Tempo       |
+|-----------------|------:|------:|-------:|----------:|------------:|
+| Helsinki        | 33.71 | 58.86 | 0.7825 | 0.8622    | 529s        |
+| Narrativa mBART | 6.54  | 25.48 | 0.6452 | 0.7917    | 797s        |
+| Unicamp-T5      | 3.55  | 19.73 | 0.5391 | 0.7573    | 237s        |
+| VanessaSchenkel | 2.77  | 17.19 | 0.5091 | 0.7562    | 215s        |
+| M2M100          | 22.99 | 50.08 | 0.7012 | 0.8404    | 888s        |
+| QuickMT         | 0.00  | 4.80  | 0.2480 | 0.4871    | 59s         |
+
+**ParaCrawl (5.000 exemplos, sentenças curtas ~7 palavras/sentença)**
+
+| Modelo          | BLEU  | chrF  | COMET  | BERTScore | Tempo       |
+|-----------------|------:|------:|-------:|----------:|------------:|
+| Helsinki        | 39.63 | 59.98 | 0.8452 | 0.8696    | 740s        |
+| Narrativa mBART | 27.07 | 46.75 | 0.8083 | 0.8544    | 2.013s      |
+| Unicamp-T5      | 19.46 | 37.99 | 0.7239 | 0.8076    | 633s        |
+| VanessaSchenkel | 11.05 | 28.89 | 0.6868 | 0.7992    | 610s        |
+| M2M100          | 22.41 | 47.11 | 0.7735 | 0.8293    | 585s        |
+| QuickMT         | 0.00  | 4.03  | 0.2789 | 0.4703    | 288s        |
+
+**Flores (1.012 exemplos)**
+
+| Modelo          | BLEU  | chrF  | COMET  | BERTScore | Tempo       |
+|-----------------|------:|------:|-------:|----------:|------------:|
+| Helsinki        | 39.08 | 60.72 | 0.8473 | 0.8683    | 131s        |
+| Narrativa mBART | 29.43 | 48.59 | 0.8182 | 0.8588    | 378s        |
+| Unicamp-T5      | 20.72 | 39.52 | 0.7380 | 0.8116    | 122s        |
+| VanessaSchenkel | 11.74 | 29.93 | 0.7066 | 0.8032    | 111s        |
+| M2M100          | 20.85 | 47.45 | 0.7842 | 0.8301    | 247s        |
+| QuickMT         | 0.00  | 3.68  | 0.2835 | 0.4689    | 59s         |
+
+**OPUS100 (5.000 exemplos)**
+
+| Modelo          | BLEU  | chrF  | COMET  | BERTScore | Tempo       |
+|-----------------|------:|------:|-------:|----------:|------------:|
+| Helsinki        | 39.63 | 59.98 | 0.8452 | 0.8696    | 744s        |
+| Narrativa mBART | 27.07 | 46.75 | 0.8083 | 0.8544    | 1.126s      |
+| Unicamp-T5      | 19.46 | 37.99 | 0.7239 | 0.8076    | 649s        |
+| VanessaSchenkel | 11.05 | 28.89 | 0.6868 | 0.7992    | 617s        |
+| M2M100          | 22.41 | 47.11 | 0.7735 | 0.8293    | 585s        |
+| QuickMT         | 0.00  | 4.03  | 0.2789 | 0.4703    | 287s        |
+
 ### Comandos
 
 ```bash
