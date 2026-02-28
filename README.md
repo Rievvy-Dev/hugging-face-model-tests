@@ -6,6 +6,61 @@ Este projeto implementa um **pipeline de 5 estágios** para avaliar e fine-tunar
 
 O modelo selecionado para fine-tuning foi o **`unicamp-dl/translation-en-pt-t5`**, uma adaptação do T5 (Text-to-Text Transfer Transformer) para tradução EN→PT, desenvolvido pela Universidade Estadual de Campinas (UNICAMP).
 
+### Motivação: Por que estudar tradução automática neural quando LLMs já traduzem bem?
+
+Modelos de linguagem de grande porte (LLMs) como GPT-4 e Claude produzem traduções de alta qualidade em cenários gerais. Isso levanta uma questão legítima: **por que pesquisar fine-tuning de modelos NMT dedicados?** A resposta envolve múltiplas dimensões fundamentais para pesquisa acadêmica e aplicações em escala:
+
+#### 1. Custo e escalabilidade
+
+O corpus SciELO contém **2,7 milhões** de pares de abstracts. Traduzir esse volume via API de LLM teria custo proibitivo:
+
+| Abordagem             | Custo estimado (2.7M abstracts)      | Latência          |
+|-----------------------|--------------------------------------|--------------------|
+| GPT-4 API             | ~$8.000–15.000 (tokens de I/O)       | Dias (rate limits) |
+| Claude API            | ~$5.000–10.000                       | Dias (rate limits) |
+| Google Translate API  | ~$4.000–6.000                        | Horas              |
+| **NMT local (T5)**    | **$0 (apenas eletricidade)**         | **Horas (GPU)**    |
+
+Um modelo NMT fine-tuned roda localmente em uma **GPU de ~$300** (RTX 4050) sem custo por token, sem limites de taxa, e sem dependência de serviços externos.
+
+#### 2. Reprodutibilidade e rigor científico
+
+Resultados acadêmicos devem ser **reprodutíveis**. LLMs comerciais são:
+- **Não-determinísticos**: mesma entrada pode gerar saídas diferentes (temperature > 0)
+- **Opacos**: arquitetura, dados de treino e pesos são proprietários
+- **Mutáveis**: modelos são atualizados sem aviso — GPT-4 de janeiro ≠ GPT-4 de junho
+- **Não-auditáveis**: impossível inspecionar por que uma tradução específica foi gerada
+
+Um modelo NMT open-source com pesos fixos produz **saída determinística** e permite **inspeção completa**: arquitetura, pesos, tokenizador, dados de treino — tudo verificável e citável.
+
+#### 3. Soberania de dados e privacidade
+
+Textos biomédicos podem conter informações sensíveis. Enviar dados para APIs externas levanta questões de:
+- **Privacidade**: dados podem ser retidos para treino pelos provedores
+- **Conformidade legal**: LGPD e regulamentações de dados biomédicos
+- **Soberania**: dependência de infraestrutura estrangeira para processamento de dados nacionais
+
+Modelos locais processam dados **inteiramente em hardware próprio**, sem transmissão para terceiros.
+
+#### 4. Especialização de domínio
+
+LLMs são generalistas. Para domínios especializados como biomedicina, modelos NMT fine-tuned oferecem vantagens (Koehn & Knowles, 2017):
+- **Consistência terminológica**: termos como "randomized controlled trial" devem ser sempre traduzidos como "ensaio clínico randomizado", não variar entre chamadas
+- **Vocabulário de domínio**: tokenizador e embeddings ajustados para termos científicos
+- **Avaliação controlada**: métricas calculáveis (BLEU, COMET) em test sets fixos
+
+Zhu et al. (2023) demonstraram que LLMs como GPT-4 superam o NLLB em apenas **40,91%** das direções de tradução, com gap significativo para traduções especializadas e pares de idiomas com menos recursos.
+
+#### 5. Contribuição científica
+
+A relevância acadêmica deste trabalho não está apenas nos resultados, mas na **metodologia**:
+- Documentar um pipeline reprodutível de avaliação e fine-tuning de NMT
+- Demonstrar que **técnicas de regularização** importam mais que volume de dados
+- Fornecer um caso de estudo empírico de **catastrophic forgetting** vs. fine-tuning bem-sucedido
+- Contribuir para a pesquisa em tradução automática EN→PT no domínio biomédico, que ainda é sub-representada na literatura
+
+> **Em resumo**: LLMs são excelentes para tradução casual. Mas para tradução **em escala**, **reprodutível**, **auditável**, **privada** e **especializada em domínio** — como é necessário em pesquisa científica — modelos NMT dedicados e fine-tuned continuam sendo a abordagem mais adequada e economicamente viável.
+
 ### Resultados Obtidos
 
 | Métrica    | Antes do Fine-tuning | Após Fine-tuning (Epoch 12) | Delta   | Melhoria |
@@ -31,11 +86,252 @@ O modelo é baseado na arquitetura **T5 (Text-to-Text Transfer Transformer)** pr
 | Dimensão oculta (d_model) | 768                         |
 | Cabeças de atenção        | 12                          |
 | Dimensão do feed-forward  | 3072                        |
-| Parâmetros totais         | ~220M                       |
+| Parâmetros totais         | ~223M (222.903.552)         |
 | Vocabulário               | 32.128 tokens (SentencePiece) |
 | Tipo de atenção           | Multi-head self-attention   |
 | Normalização              | Layer Normalization (pre-norm) |
 | Ativação                  | ReLU (Rectified Linear Unit) |
+
+### O que significam os parâmetros da arquitetura?
+
+Cada campo do `config.json` do modelo define uma propriedade matemática específica da rede neural. Abaixo, a explicação de cada um com as fórmulas:
+
+#### `d_model = 768` — Dimensão oculta
+
+É o tamanho do vetor que representa cada token em **todas as camadas** do modelo. Cada palavra (token) da entrada é convertida em um vetor de 768 dimensões. Todas as operações internas (atenção, feed-forward, projeção) operam nessa dimensionalidade.
+
+$$\text{embedding}(x_i) \in \mathbb{R}^{768}$$
+
+**Analogia**: Se cada token fosse uma pessoa, `d_model` seria quantas "características" (altura, peso, idade, ...) descrevem essa pessoa. Com 768 características, o modelo captura nuances semânticas muito finas.
+
+#### `num_heads = 12` — Cabeças de atenção
+
+O mecanismo de **Multi-Head Attention** (Vaswani et al., 2017) divide a atenção em múltiplas "perspectivas" independentes. Cada cabeça aprende a capturar um tipo diferente de relação linguística:
+
+$$\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \ldots, \text{head}_{12}) \cdot W^O$$
+
+Onde cada cabeça é:
+
+$$\text{head}_i = \text{Attention}(Q \cdot W_i^Q, \; K \cdot W_i^K, \; V \cdot W_i^V)$$
+
+**Referência**: Vaswani, A. et al. (2017). *Attention is All You Need*. In NeurIPS 2017. https://arxiv.org/abs/1706.03762
+
+**O que cada cabeça captura** (exemplos típicos do que se observa em modelos treinados):
+
+```
+Head 1:  Relações sujeito-verbo     ("paciente" ← atenção → "apresentou")
+Head 2:  Relações de adjacência     ("febre" ← atenção → "persistente")
+Head 3:  Relações de correferência  ("ele" ← atenção → "paciente")
+Head 4:  Relações posicionais       (palavras próximas entre si)
+Head 5:  Pontuação e estrutura      ("." ← atenção → fim de sentença)
+...
+Head 12: Padrões aprendidos diversos
+```
+
+#### `d_kv = 64` — Dimensão por cabeça de atenção
+
+Cada cabeça de atenção opera num subespaço de dimensão $d_{kv}$. É a dimensão dos vetores Query ($Q$), Key ($K$) e Value ($V$) individuais de cada cabeça.
+
+$$d_{kv} = \frac{d_{model}}{num\_heads} = \frac{768}{12} = 64$$
+
+O mecanismo de **Scaled Dot-Product Attention** (a operação central de cada cabeça) é:
+
+$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q \cdot K^T}{\sqrt{d_{kv}}}\right) \cdot V$$
+
+Onde:
+- $Q \in \mathbb{R}^{n \times 64}$ = queries (o que cada token "procura")
+- $K \in \mathbb{R}^{n \times 64}$ = keys (o que cada token "oferece" para ser encontrado)
+- $V \in \mathbb{R}^{n \times 64}$ = values (a informação que cada token "carrega")
+- $\sqrt{d_{kv}} = \sqrt{64} = 8$ = fator de escala (evita que o softmax sature)
+- $n$ = comprimento da sequência
+
+```
+Exemplo: "O paciente apresentou febre"  (4 tokens, d_kv=64)
+
+                  K₁(O)   K₂(pac.)  K₃(apr.)  K₄(febre)
+Q₁(O)          [ 0.80     0.05      0.10      0.05   ]    → "O" atende a si mesmo
+Q₂(paciente)   [ 0.10     0.30      0.50      0.10   ]    → "paciente" atende "apresentou"
+Q₃(apresentou) [ 0.05     0.45      0.20      0.30   ]    → "apresentou" atende "paciente"
+Q₄(febre)      [ 0.02     0.08      0.40      0.50   ]    → "febre" atende "apresentou"
+                  ↑ cada valor é um peso de atenção (soma = 1 por linha, via softmax)
+```
+
+#### `d_ff = 3072` — Dimensão do feed-forward
+
+Após cada bloco de atenção, o output passa por uma rede **Feed-Forward** (FFN) de duas camadas. A primeira expande a dimensionalidade, a segunda comprime de volta:
+
+$$\text{FFN}(x) = \text{ReLU}(x \cdot W_1) \cdot W_2$$
+
+> **Nota**: A formulação original de Vaswani et al. (2017) inclui termos de bias ($b_1, b_2$), mas a implementação T5 **não usa bias** nas camadas lineares — apenas as matrizes de peso $W_1$ e $W_2$.
+
+Onde:
+- $W_1 \in \mathbb{R}^{768 \times 3072}$ → expande 768 → 3072 (4x)
+- $W_2 \in \mathbb{R}^{3072 \times 768}$ → comprime 3072 → 768
+- $\text{ReLU}(z) = \max(0, z)$ → ativação não-linear
+
+```
+Input:  x ∈ ℝ^768    (vetor do token após atenção)
+         ↓
+    W₁ × x            → ℝ^3072  (expansão: 768 → 3072, sem bias)
+         ↓
+    ReLU(·)           → ℝ^3072  (não-linearidade: zera negativos)
+         ↓
+    W₂ × ·            → ℝ^768   (compressão: 3072 → 768, sem bias)
+         ↓
+Output: y ∈ ℝ^768    (mesmo tamanho que input → residual connection)
+```
+
+**Por que 3072?** A razão $d_{ff} / d_{model} = 3072 / 768 = 4\times$ é uma convenção estabelecida por Vaswani et al. (2017). A expansão temporária para 4x permite ao modelo aprender transformações mais complexas, e a compressão de volta para $d_{model}$ mantém a uniformidade dimensional entre camadas.
+
+#### `dropout_rate = 0.1` — Regularização por dropout
+
+Durante o treino, **10% dos neurônios são aleatoriamente desativados** (zerados) a cada forward pass. Isso força o modelo a aprender representações mais robustas — ele não pode depender de nenhum neurônio individual.
+
+$$\text{Dropout}(x_i) = \begin{cases} \frac{x_i}{1-p} & \text{com probabilidade } 1-p \\ 0 & \text{com probabilidade } p = 0.1 \end{cases}$$
+
+O fator $\frac{1}{1-p} = \frac{1}{0.9} \approx 1.11$ é o **inverted dropout** — escala os valores restantes para manter a mesma magnitude esperada (Srivastava et al., 2014).
+
+**Referência**: Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., & Salakhutdinov, R. (2014). *Dropout: A Simple Way to Prevent Neural Networks from Overfitting*. JMLR, 15(1), pp. 1929–1958.
+
+#### `relative_attention_num_buckets = 32` — Posição relativa
+
+Diferente do Transformer original que usa embeddings posicionais absolutos (senoidais), o T5 usa **relative position bias** (Shaw et al., 2018; Raffel et al., 2019). Em vez de codificar a posição absoluta de cada token, codifica a **distância relativa** entre pares de tokens.
+
+As distâncias relativas são agrupadas em 32 "buckets" (baldes) usando uma escala logarítmica:
+
+```
+Distância relativa    Bucket
+──────────────────    ──────
+         0              0     (mesmo token)
+        ±1              1     (adjacente)
+        ±2              2
+        ±3-4            3     (começa a agrupar)
+        ±5-7            4
+        ±8-15           5
+        ±16-31          6
+        ±32-63          7
+        ...             ...
+       ±64-128         ...    (max_distance=128)
+```
+
+A escala logarítmica permite que o modelo distinga tokens próximos com alta resolução, mas agrupe tokens distantes — o que faz sentido linguisticamente (a relação entre palavras adjacentes é mais variada que entre palavras separadas por 100 tokens).
+
+**Referência**: Shaw, P., Uszkoreit, J., & Vaswani, A. (2018). *Self-Attention with Relative Position Representations*. In Proceedings of NAACL-HLT 2018, pp. 464–468. https://aclanthology.org/N18-2074/
+
+#### `vocab_size = 32128` — Tamanho do vocabulário
+
+O tokenizador **SentencePiece** (Kudo & Richardson, 2018) usa um modelo **unigram** que decompõe textos em subpalavras:
+
+```
+Texto: "randomized controlled trial" → 32128 possíveis subpalavras
+
+Tokenização:
+  "randomized"     → ["_random", "ized"]              (2 tokens)
+  "controlled"     → ["_control", "led"]               (2 tokens)
+  "trial"          → ["_trial"]                         (1 token)
+  Total: 5 tokens
+
+Texto raro: "bronchopneumonia" → ["_broncho", "pne", "umon", "ia"] (4 tokens)
+Texto comum: "the" → ["_the"]  (1 token)
+```
+
+A embedding layer mapeia cada um dos 32.128 tokens para um vetor de $d_{model} = 768$ dimensões:
+
+$$E \in \mathbb{R}^{32128 \times 768}$$
+
+Isso soma **24,7M parâmetros** apenas na embedding (compartilhada entre encoder e decoder no T5).
+
+**Referência**: Kudo, T. & Richardson, J. (2018). *SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing*. In Proceedings of EMNLP 2018, pp. 66–71. https://aclanthology.org/D18-2012/
+
+#### Cálculo do total de parâmetros (~220M)
+
+A contagem detalhada de parâmetros do modelo T5-base:
+
+$$\text{Params}_{total} = \text{Params}_{embedding} + \text{Params}_{encoder} + \text{Params}_{decoder} + \text{Params}_{head}$$
+
+```
+1. EMBEDDING (compartilhada encoder/decoder):
+   E = vocab_size × d_model = 32128 × 768 = 24,674,304 params
+
+2. ENCODER (12 camadas, cada uma com):
+   a) Self-Attention (sem bias — T5 usa projeções lineares sem termo de viés):
+      W_Q, W_K, W_V: 3 × (d_model × d_kv × num_heads) = 3 × (768 × 64 × 12) = 1,769,472
+      W_O:           d_model × d_model = 768 × 768 = 589,824
+      T5LayerNorm:   d_model = 768  (apenas scale, sem bias — RMSNorm)
+      Subtotal attn: 2,360,064 /camada
+
+   b) Feed-Forward (sem bias nas camadas lineares):
+      W₁: d_model × d_ff = 768 × 3072 = 2,359,296
+      W₂: d_ff × d_model = 3072 × 768 = 2,359,296
+      T5LayerNorm: d_model = 768  (apenas scale)
+      Subtotal FFN: 4,719,360 /camada
+
+   + Relative Attention Bias (apenas no bloco 0, compartilhado):
+      relative_attention_bias: num_buckets × num_heads = 32 × 12 = 384
+
+   Total Encoder: 12 × (2,360,064 + 4,719,360) + 384 + 768 (final LN)
+   Total Encoder: 84,954,240
+
+3. DECODER (12 camadas, cada uma com):
+   a) Self-Attention:    mesma estrutura    = 2,360,064 /camada
+   b) Cross-Attention:   mesma estrutura    = 2,360,064 /camada
+   c) Feed-Forward:      mesma estrutura    = 4,719,360 /camada
+
+   + Relative Attention Bias (bloco 0): 384
+   Total Decoder: 12 × (2,360,064 + 2,360,064 + 4,719,360) + 384 + 768 (final LN)
+   Total Decoder: 113,275,008
+
+4. LM HEAD (compartilha pesos com embedding):
+   Sem parâmetros adicionais (tied weights)
+
+TOTAL: 24,674,304 + 84,954,240 + 113,275,008 = 222,903,552 ≈ 223M ✅
+(Verificado: safetensors do modelo contém exatamente 222,903,552 parâmetros)
+```
+
+### Fluxo completo Encoder-Decoder
+
+```
+ENCODER (processa o texto fonte em paralelo):
+
+  Input: "The patient presented fever"
+    ↓ Tokenize + Embed
+  X₀ = [e₁, e₂, e₃, e₄]  ∈ ℝ^(4×768)   (4 tokens × 768 dims)
+    ↓ + Relative Position Bias
+    ↓
+  ┌─── Camada 1 ────────────────────────────────────────┐
+  │ Layer Norm → Self-Attention → Residual Connection    │
+  │ X₁ = LayerNorm(X₀) → MultiHead(Q,K,V) + X₀        │
+  │ Layer Norm → FFN → Residual Connection               │
+  │ X₁ = LayerNorm(X₁) → FFN(X₁) + X₁                 │
+  └──────────────────────────────────────────────────────┘
+    ↓ ... repete 12 vezes ...
+  ┌─── Camada 12 ───────────────────────────────────────┐
+  │ (mesma estrutura)                                    │
+  └──────────────────────────────────────────────────────┘
+    ↓ Final Layer Norm
+  H_enc = [h₁, h₂, h₃, h₄]  ∈ ℝ^(4×768)   ← "memória" do encoder
+
+DECODER (gera token por token, autoregressivamente):
+
+  Target: "<pad> O paciente apresentou febre" (shifted right)
+    ↓ Tokenize + Embed
+  Y₀ = [d₁, d₂, d₃, d₄, d₅]
+    ↓
+  ┌─── Camada 1 ────────────────────────────────────────┐
+  │ Layer Norm → Masked Self-Attention → Residual        │
+  │   (cada token só vê tokens ANTERIORES — causal)      │
+  │ Layer Norm → Cross-Attention(Q=dec, K=enc, V=enc)    │
+  │   (decoder "consulta" o encoder: alinha source↔target)│
+  │ Layer Norm → FFN → Residual                          │
+  └──────────────────────────────────────────────────────┘
+    ↓ ... repete 12 vezes ...
+    ↓ Final Layer Norm
+    ↓ LM Head (projeção linear → logits ∈ ℝ^32128)
+    ↓ Softmax → probabilidade sobre todo o vocabulário
+  P("O" | "The patient presented fever", <pad>) = 0.87
+  P("paciente" | "The patient presented fever", <pad> O) = 0.92
+  ...
+```
 
 ### Pré-treinamento e Dados Originais
 
@@ -60,13 +356,94 @@ O modelo é baseado na arquitetura **T5 (Text-to-Text Transfer Transformer)** pr
 }
 ```
 
-### Por que este modelo foi selecionado?
+### Como o modelo foi selecionado? — O caso Helsinki
 
-1. **Eficiência computacional**: ~220M parâmetros (6x menor que Helsinki opus-mt-tc-big-en-pt)
-2. **Bom baseline**: BLEU 40.06 em abstracts SciELO sem fine-tuning
-3. **Arquitetura comprovada**: T5 é estado da arte em tarefas text-to-text
-4. **Viável em hardware modesto**: Cabe em GPU com 6GB VRAM (RTX 4050)
-5. **Domínio adequado**: Pré-treinado em corpus científico, alinhado ao SciELO
+A seleção do modelo não foi automática. O `Helsinki-NLP/opus-mt-tc-big-en-pt` foi a **primeira escolha** para fine-tuning, pois liderou o ranking no STAGE 1 (BLEU=37.47, chrF=59.85 na avaliação geral). Porém, o fine-tuning do Helsinki **fracassou** — os resultados **pioraram** em relação ao modelo base.
+
+#### Tentativa com Helsinki: configuração e resultados
+
+| Parâmetro               | Helsinki (1ª tentativa)       | Unicamp-T5 (2ª tentativa)         |
+|--------------------------|-------------------------------|-----------------------------------|
+| Arquitetura              | MarianMT (~600M params)       | T5 (~220M params)                 |
+| Dataset de treino        | 80.000 exemplos               | 18.000 exemplos                   |
+| Dataset de validação     | ❌ Nenhum                     | ✅ 2.000 exemplos                 |
+| Epochs                   | 5                             | 12                                |
+| Batch size               | 8                             | 8                                 |
+| Gradient accumulation    | ❌ Não                        | ✅ 2 (effective batch = 16)       |
+| Learning rate            | ~2e-5 (default)               | 1e-5 (conservador)               |
+| FP16 (mixed precision)   | ❌ Não                        | ✅ Sim                            |
+| max_seq_len              | ❌ Não configurado (default)  | ✅ 256 tokens                     |
+| Early stopping           | ❌ Não                        | ✅ patience=2                     |
+
+#### Por que o Helsinki fracassou?
+
+```
+Helsinki: Training Loss ao longo de 50.000 steps (5 epochs)
+
+Loss
+ 8 ┤ ██
+ 7 ┤  ██
+ 6 ┤    ███
+ 5 ┤       ████
+ 4 ┤           ████
+ 3 ┤               █████
+ 2 ┤                    ███████
+ 1 ┤                           ████████████████
+ 0 ┤                                           ██████████ ← 0.14 (OVERFITTING!)
+   └──────────────────────────────────────────────────────
+   0     10k    20k    30k    40k    50k steps
+```
+
+Análise do `trainer_state.json` do Helsinki:
+- **Training loss**: 7.65 → 0.14 (queda de 98%) — o modelo **memorizou** os dados de treino
+- **Eval loss**: **inexistente** — nenhuma avaliação durante o treino (0 eval entries)
+- **best_metric**: `None` — sem monitoramento, sem seleção do melhor checkpoint
+- **Resultado final**: BLEU = **36** (era 42.64 no SciELO base → **degradação de -6.6 pontos!**)
+- **chrF** = **65** (era 68.93 → **degradação de -3.9 pontos**)
+- **COMET e BERTScore**: não foi possível medir
+
+O diagnóstico é claro: **catastrophic forgetting** (esquecimento catastrófico). Sem conjunto de validação, sem early stopping, e sem regularização, o modelo com 600M de parâmetros **memorizou** os 80k exemplos de treino (loss → 0.14) mas **perdeu a capacidade de generalizar** para textos novos. Este é um fenômeno bem documentado na literatura de adaptação de domínio em NMT (Miceli Barone et al., 2017; Freitag & Al-Onaizan, 2016).
+
+#### Por que o Unicamp-T5 teve sucesso?
+
+A segunda tentativa aplicou todas as lições aprendidas com a falha do Helsinki:
+
+1. **Conjunto de validação (2k exemplos)**: Permitiu monitorar eval_loss a cada epoch e detectar overfitting
+2. **Early stopping (patience=2)**: Interromperia o treino automaticamente se eval_loss parasse de melhorar
+3. **Gradient accumulation (2)**: Effective batch size de 16, suavizando gradientes ruidosos
+4. **Learning rate conservador (1e-5)**: Metade do default, evitando atualizações destrutivas
+5. **FP16 (mixed precision)**: Viabilizou treinar na RTX 4050 (6GB VRAM) sem out-of-memory
+6. **max_seq_len=256**: Truncamento explícito, evitando sequências variáveis que desestabilizam o treino
+7. **Modelo 3x menor (220M vs 600M)**: Menos propenso a overfitting com dados limitados
+
+**Resultado**: Training loss convergiu para **0.97** — praticamente igual ao eval_loss (**0.97**), indicando zero overfitting. BLEU subiu de 40.06 para **45.51** (+13.6%).
+
+#### Fundamentação: por que menos dados + mais técnicas supera mais dados sem técnicas?
+
+A literatura de adaptação de domínio em NMT sustenta fortemente este resultado:
+
+- **Miceli Barone et al. (2017)** demonstraram que, ao fazer fine-tuning de NMT em dados in-domain de tamanho limitado, **técnicas de regularização** (dropout, L2, early stopping) são mais importantes que o volume de dados. Sem regularização, modelos grandes overfitam rapidamente, mesmo com datasets grandes. O artigo encontra uma relação **logarítmica** entre volume de dados e ganho em BLEU — ou seja, dobrar os dados não dobra a qualidade.
+
+- **Freitag & Al-Onaizan (2016)** mostraram que é possível adaptar modelos NMT a novos domínios **com poucos dados in-domain**, desde que o processo de fine-tuning seja controlado. A chave é **qualidade do processo**, não quantidade de dados.
+
+- **Neubig & Hu (2018)** propuseram "similar-language regularization" para evitar overfitting em adaptação com dados limitados, confirmando que a **prevenção de overfitting** é o fator crítico em domain adaptation.
+
+- **Koehn & Knowles (2017)** identificaram 6 desafios para NMT, incluindo que modelos neurais são particularmente sensíveis a **dados fora do domínio** e que adaptação de domínio requer técnicas cuidadosas.
+
+No nosso caso, os 18k exemplos do SciELO são **altamente representativos** do domínio-alvo (abstracts científicos biomédicos EN→PT), enquanto os 80k do Helsinki possivelmente continham ruído ou distribuição menos focada. Mais epochs (12 vs 5) permitiram **exposição repetida ao vocabulário especializado** do domínio, enquanto o early stopping impediu que essa repetição causasse memorização.
+
+```
+RESUMO DA SELEÇÃO:
+
+Helsinki (1ª tentativa)         Unicamp-T5 (2ª tentativa)
+├─ 600M params                  ├─ 220M params
+├─ 80k treino, 0 validação      ├─ 18k treino, 2k validação
+├─ 5 epochs, sem early stop     ├─ 12 epochs, early stopping
+├─ Sem grad_accum, sem fp16     ├─ grad_accum=2, fp16
+├─ Loss: 7.65 → 0.14 ⚠️        ├─ Loss: ~2.5 → 0.97 ✅
+├─ BLEU: 42.64 → 36 📉 (-15.6%) ├─ BLEU: 40.06 → 45.51 📈 (+13.6%)
+└─ FRACASSO (overfitting)       └─ SUCESSO (generalização)
+```
 
 ---
 
@@ -74,14 +451,14 @@ O modelo é baseado na arquitetura **T5 (Text-to-Text Transfer Transformer)** pr
 
 ```
 STAGE 1: AVALIAÇÃO INICIAL
-├─ Testar 6 modelos pré-treinados em 4 datasets públicos
+├─ Testar 6 modelos pré-treinados em 3 datasets públicos
 ├─ Calcular BLEU, chrF, COMET, BERTScore
 └─ Resultado: evaluation_results/translation_metrics_all.csv
         ↓
 STAGE 2: SELEÇÃO DO MODELO
-├─ Ranking por score composto (BLEU + chrF + COMET + BERTScore)
-├─ Seleção: unicamp-dl/translation-en-pt-t5
-└─ Resultado: modelo definido para fine-tuning
+├─ 1ª tentativa: Helsinki (fracasso — catastrophic forgetting)
+├─ 2ª tentativa: unicamp-dl/translation-en-pt-t5 (sucesso)
+└─ Resultado: modelo definido com base em experimentação empírica
         ↓
 STAGE 3: PREPARAÇÃO DE DADOS
 ├─ Separar SciELO em 3 splits não-sobrepostos:
@@ -107,7 +484,7 @@ STAGE 5: AVALIAÇÃO FINAL
 ## STAGE 1: Avaliação Inicial dos Modelos
 
 ### Objetivo
-Avaliar 6 modelos pré-treinados em 4 datasets públicos para estabelecer baselines.
+Avaliar 6 modelos pré-treinados em 3 datasets públicos para estabelecer baselines.
 
 ### Modelos Avaliados
 
@@ -127,7 +504,6 @@ Avaliar 6 modelos pré-treinados em 4 datasets públicos para estabelecer baseli
 | WMT24++      | 998      | Avaliação en→pt_BR           |
 | ParaCrawl    | 5.000    | Crawl web paralelo en→pt     |
 | Flores       | 1.012    | Facebook multilingual        |
-| OPUS100      | 5.000    | Corpus paralelo en→pt        |
 
 ### Métricas
 
@@ -138,16 +514,16 @@ Avaliar 6 modelos pré-treinados em 4 datasets públicos para estabelecer baseli
 | **COMET**     | Neural     | 0-1   | Score neural aprendido (Unbabel/wmt22-comet-da)    |
 | **BERTScore** | Neural     | 0-1   | Similaridade semântica via embeddings BERT         |
 
-### Resultados — Média por Modelo (4 datasets)
+### Resultados — Média por Modelo (3 datasets)
 
 | #  | Modelo          | BLEU  | chrF  | COMET  | BERTScore | GPU (MB) |
 |----|-----------------|------:|------:|-------:|----------:|---------:|
-| 1  | Helsinki        | 38.01 | 59.89 | 0.8301 | 0.8674    | 904      |
-| 2  | Narrativa mBART | 22.53 | 41.89 | 0.7700 | 0.8398    | 2.340    |
-| 3  | Unicamp-T5      | 15.80 | 33.81 | 0.6812 | 0.7960    | 859      |
-| 4  | VanessaSchenkel | 9.15  | 26.22 | 0.6473 | 0.7895    | 859      |
-| 5  | M2M100          | 22.17 | 47.94 | 0.7581 | 0.8323    | 1.863    |
-| 6  | QuickMT         | 0.00  | 4.13  | 0.2723 | 0.4742    | 9        |
+| 1  | Helsinki        | 37.47 | 59.85 | 0.8250 | 0.8667    | 904      |
+| 2  | Narrativa mBART | 21.01 | 40.27 | 0.7572 | 0.8350    | 2.340    |
+| 3  | Unicamp-T5      | 14.58 | 32.41 | 0.6670 | 0.7922    | 859      |
+| 4  | VanessaSchenkel | 8.52  | 25.34 | 0.6342 | 0.7862    | 859      |
+| 5  | M2M100          | 22.08 | 48.21 | 0.7530 | 0.8333    | 1.863    |
+| 6  | QuickMT         | 0.00  | 4.17  | 0.2701 | 0.4754    | 9        |
 
 ### Resultados Detalhados — Por Dataset
 
@@ -184,17 +560,6 @@ Avaliar 6 modelos pré-treinados em 4 datasets públicos para estabelecer baseli
 | M2M100          | 20.85 | 47.45 | 0.7842 | 0.8301    | 247s        |
 | QuickMT         | 0.00  | 3.68  | 0.2835 | 0.4689    | 59s         |
 
-**OPUS100 (5.000 exemplos)**
-
-| Modelo          | BLEU  | chrF  | COMET  | BERTScore | Tempo       |
-|-----------------|------:|------:|-------:|----------:|------------:|
-| Helsinki        | 39.63 | 59.98 | 0.8452 | 0.8696    | 744s        |
-| Narrativa mBART | 27.07 | 46.75 | 0.8083 | 0.8544    | 1.126s      |
-| Unicamp-T5      | 19.46 | 37.99 | 0.7239 | 0.8076    | 649s        |
-| VanessaSchenkel | 11.05 | 28.89 | 0.6868 | 0.7992    | 617s        |
-| M2M100          | 22.41 | 47.11 | 0.7735 | 0.8293    | 585s        |
-| QuickMT         | 0.00  | 4.03  | 0.2789 | 0.4703    | 287s        |
-
 ### Comandos
 
 ```bash
@@ -218,13 +583,37 @@ python evaluate_quickmt.py --resume
 ## STAGE 2: Seleção do Modelo
 
 ### Objetivo
-Selecionar o melhor modelo considerando qualidade e eficiência.
+Selecionar o melhor modelo para fine-tuning por experimentação prática.
 
-### Score Composto
+### Processo Real de Seleção
+
+A seleção não foi automática por score composto. Foi um processo **empírico em duas etapas**:
+
+**Etapa 1 — Helsinki (fracasso)**:
+O modelo com melhor desempenho no STAGE 1 (Helsinki, BLEU=37.47) foi a escolha natural. Foi feito fine-tuning com 80k exemplos, 5 epochs, batch_size=8, sem validação, sem early stopping, sem gradient accumulation, sem fp16, sem controle de max_seq_len. O resultado foi **catastrophic forgetting**: BLEU caiu de 42.64→36 no SciELO, chrF de 68.93→65. O modelo memorizou o treino (loss→0.14) mas perdeu generalização.
+
+**Etapa 2 — Unicamp-T5 (sucesso)**:
+Com as lições aprendidas, a segunda tentativa usou o `unicamp-dl/translation-en-pt-t5` (220M params, 3x menor), com todas as técnicas de regularização: validação (2k), early stopping, gradient accumulation, fp16, max_seq_len=256, lr conservador. BLEU subiu de 40.06→45.51 (+13.6%).
+
+### Score Composto (ferramenta auxiliar)
+O script `choose_best_model.py` calcula um score composto para referência:
+
+$$S = 0.30 \cdot \hat{B} + 0.25 \cdot \hat{C}_r + 0.25 \cdot \hat{C}_o + 0.20 \cdot \hat{B}_s$$
+
+Onde cada métrica é normalizada min-max para $[0, 1]$ entre os modelos avaliados:
+
+$$\hat{x} = \frac{x - x_{\min}}{x_{\max} - x_{\min}}$$
+
 ```
-score = 0.30 × BLEU_norm + 0.25 × chrF_norm + 0.25 × COMET_norm + 0.20 × BERTScore_norm
+Exemplo: normalização do BLEU
+  Valores brutos: Helsinki=37.47, Narrativa=21.01, Unicamp-T5=14.58, ...
+  min = 0.00 (QuickMT), max = 37.47 (Helsinki)
+  
+  BLEU_norm(Helsinki)  = (37.47 - 0.00) / (37.47 - 0.00) = 1.000
+  BLEU_norm(Unicamp-T5) = (14.58 - 0.00) / (37.47 - 0.00) = 0.389
 ```
-Todos os scores normalizados min-max para [0, 1].
+
+**Pesos**: BLEU recebe maior peso (0.30) por ser a métrica mais estabelecida. chrF e COMET dividem 0.25 cada. BERTScore recebe 0.20 por ter menor correlação com tradução especificamente.
 
 ### Comando
 ```bash
@@ -232,7 +621,7 @@ python choose_best_model.py
 ```
 
 ### Resultado
-Modelo selecionado: **`unicamp-dl/translation-en-pt-t5`** — melhor trade-off entre qualidade e custo computacional para fine-tuning em domínio científico.
+Modelo selecionado: **`unicamp-dl/translation-en-pt-t5`** — definido após a falha empírica do Helsinki, validado por sua eficiência computacional (220M params, RTX 4050 compatível) e pela qualidade dos resultados de fine-tuning (+5.45 BLEU).
 
 ---
 
@@ -257,6 +646,41 @@ Criar 3 splits não-sobrepostos do dataset SciELO (2.7M exemplos totais).
 - **2k validação**: Monitora eval_loss por epoch e aciona early stopping
 - **5k teste**: Mesmo conjunto usado na avaliação do modelo base, garantindo comparação justa
 - **Seed fixo (42)**: Splits são determinísticos e reprodutíveis
+
+### Como funcionam os 2.000 exemplos de validação?
+
+O conjunto de validação **não é usado para treinar** o modelo — seus pesos nunca são atualizados com base nesses dados. Ele serve exclusivamente para **monitorar a generalização** durante o treino:
+
+```
+Fluxo por epoch:
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │ TREINO (18k exemplos)                                        │
+  │  O modelo processa todos os 18k exemplos em mini-batches     │
+  │  de 8, atualizando pesos a cada batch (gradient descent).    │
+  │  → Calcula: training_loss (quão bem acerta os dados de treino)│
+  └──────────────────────────────────────────────────────────────┘
+           ↓ (ao final de cada epoch)
+  ┌──────────────────────────────────────────────────────────────┐
+  │ VALIDAÇÃO (2k exemplos) — modo inference, SEM gradient       │
+  │  O modelo traduz os 2k exemplos SEM atualizar pesos.         │
+  │  → Calcula: eval_loss (quão bem acerta dados NUNCA vistos)   │
+  └──────────────────────────────────────────────────────────────┘
+           ↓
+  ┌──────────────────────────────────────────────────────────────┐
+  │ DECISÃO DO EARLY STOPPING                                    │
+  │  Se eval_loss melhorou → salva checkpoint, reseta contador   │
+  │  Se eval_loss NÃO melhorou por 2 epochs → PARA o treino     │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+**Por que isso importa?** No caso do Helsinki (sem validação), o treino rodou todos os 50k steps cegamente. A training loss caiu para 0.14 (parecia excelente!), mas o modelo estava memorizando dados — sem eval_loss, não havia como detectar a degradação. Com validação, se a eval_loss começasse a subir (sinal de overfitting), o early stopping interromperia o treino antes do dano.
+
+| Cenário                          | train_loss | eval_loss | Diagnóstico        |
+|----------------------------------|:----------:|:---------:|:-------------------|
+| Helsinki (sem validação)         | 0.14       | ❌ N/A    | Overfitting oculto |
+| Unicamp-T5 (com validação)       | 0.97       | 0.97      | Generalização ok   |
+| Overfitting típico (hipotético)  | 0.10       | 2.50      | ⚠️ PARAR treino    |
 
 ### Comandos
 
@@ -751,6 +1175,42 @@ Com warmup de 500 steps:
   → Prática padrão: warmup de 1-5% do total de steps
 ```
 
+**Weight Decay ($\lambda = 0.01$) — Regularização L2 Desacoplada**
+
+No AdamW (diferente do Adam clássico), o weight decay é aplicado **diretamente aos pesos** em vez de ser adicionado ao gradiente. Isso é chamado de "decoupled weight decay" (Loshchilov & Hutter, 2019):
+
+$$\theta_{t+1} = (1 - \eta \cdot \lambda) \cdot \theta_t - \eta \cdot \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon}$$
+
+O termo $(1 - \eta \cdot \lambda) = (1 - 10^{-5} \times 0.01) = 0.9999999$ encolhe levemente os pesos a cada step, penalizando pesos com magnitude alta. Isso previne que o modelo "memorize" padrões com pesos extremos.
+
+```
+Comparação: Adam clássico vs AdamW
+
+Adam (L2 regularizado):                    AdamW (weight decay desacoplado):
+  g' = g + λ·θ   (adiciona ao gradiente)    θ' = θ - η·λ·θ  (encolhe direto)
+  m = β₁·m + (1-β₁)·g'                     m = β₁·m + (1-β₁)·g
+  v = β₂·v + (1-β₂)·g'²                    v = β₂·v + (1-β₂)·g²
+  θ = θ - η · m̂/√v̂                         θ = θ' - η · m̂/√v̂
+
+  Problema: λ interage com Adam de          Correto: λ aplicado independente
+  forma não-intuitiva → escala do           do gradiente adaptativo → efeito
+  weight decay depende do LR adaptativo     constante e previsível ✅
+```
+
+**AdamW — Algoritmo Completo (Kingma & Ba, 2014; Loshchilov & Hutter, 2019)**:
+
+$$m_t = \beta_1 \cdot m_{t-1} + (1 - \beta_1) \cdot g_t \quad \text{(1º momento — momentum)}$$
+$$v_t = \beta_2 \cdot v_{t-1} + (1 - \beta_2) \cdot g_t^2 \quad \text{(2º momento — variância)}$$
+$$\hat{m}_t = \frac{m_t}{1 - \beta_1^t} \quad \text{(correção de viés do momentum)}$$
+$$\hat{v}_t = \frac{v_t}{1 - \beta_2^t} \quad \text{(correção de viés da variância)}$$
+$$\theta_{t+1} = \theta_t - \eta \cdot \left(\frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon} + \lambda \cdot \theta_t\right)$$
+
+Com os valores deste projeto: $\beta_1 = 0.9$, $\beta_2 = 0.999$, $\epsilon = 10^{-8}$, $\lambda = 0.01$, $\eta = 10^{-5}$ (com schedule).
+
+**Referências**:
+- Kingma, D. P. & Ba, J. (2014). *Adam: A Method for Stochastic Optimization*. In ICLR 2015. https://arxiv.org/abs/1412.6980
+- Loshchilov, I. & Hutter, F. (2019). *Decoupled Weight Decay Regularization*. In ICLR 2019. https://arxiv.org/abs/1711.05101
+
 ---
 
 #### `--fp16` (Mixed Precision Training)
@@ -1046,21 +1506,21 @@ Epoch | eval_loss | Step   | Tendência
 
 | Epoch | Training Loss (média) | Eval Loss  | Learning Rate (final) |
 |-------|----------------------:|-----------:|----------------------:|
-| 1     | 1.0962                | 1.006836   | 9.54e-06              |
-| 2     | 1.0479                | 0.993096   | 8.69e-06              |
-| 3     | 1.0283                | 0.986074   | 7.85e-06              |
-| 4     | 1.0173                | 0.981832   | 7.00e-06              |
-| 5     | 0.9987                | 0.979202   | 6.08e-06              |
-| 6     | 0.9927                | 0.977226   | 5.23e-06              |
-| 7     | 0.9794                | 0.975687   | 4.39e-06              |
-| 8     | 0.9784                | 0.974656   | 3.46e-06              |
-| 9     | 0.9744                | 0.973745   | 2.62e-06              |
-| 10    | 0.9692                | 0.973330   | 1.77e-06              |
-| 11    | 0.9633                | 0.973035   | 9.26e-07              |
-| 12    | 0.9691                | 0.972978   | 3.08e-09              |
+| 1     | 1.1014                | 1.006836   | 9.54e-06              |
+| 2     | 1.0509                | 0.993096   | 8.69e-06              |
+| 3     | 1.0334                | 0.986074   | 7.85e-06              |
+| 4     | 1.0171                | 0.981832   | 6.92e-06              |
+| 5     | 1.0028                | 0.979202   | 6.08e-06              |
+| 6     | 0.9968                | 0.977226   | 5.23e-06              |
+| 7     | 0.9839                | 0.975687   | 4.39e-06              |
+| 8     | 0.9800                | 0.974656   | 3.46e-06              |
+| 9     | 0.9748                | 0.973745   | 2.62e-06              |
+| 10    | 0.9729                | 0.973330   | 1.77e-06              |
+| 11    | 0.9664                | 0.973035   | 9.26e-07              |
+| 12    | 0.9663                | 0.972978   | 3.08e-09              |
 
 **Observações sobre o treinamento:**
-- Training loss caiu de ~1.10 (epoch 1) para ~0.96 (epoch 12) — redução de 12.5%
+- Training loss caiu de ~1.10 (epoch 1) para ~0.97 (epoch 12) — redução de ~12%
 - Learning rate seguiu schedule linear com warmup de 500 steps (pico 1e-5) e decay até ~0
 - Gradient norms estáveis em 0.5–0.9 ao longo de todo o treinamento (sem gradient explosion)
 - Diferença train_loss vs eval_loss pequena (~0.01), indicando ausência de overfitting
@@ -1234,14 +1694,41 @@ Output IDs: [101, 5847, 12059, 28, 18453, 11, 30419, 5, 1]
 Saída: "O paciente apresentou febre e tosse."
 ```
 
-### Cálculo da Loss
+### Cálculo da Loss — Cross-Entropy
+
+**Referência**: Goodfellow, I., Bengio, Y., & Courville, A. (2016). *Deep Learning*. MIT Press, Cap. 6.2.2. https://www.deeplearningbook.org/
+
+A loss function utilizada é a **Cross-Entropy** (entropia cruzada), que mede a diferença entre a distribuição de probabilidade prevista pelo modelo e a distribuição real (one-hot do token correto).
+
+$$\mathcal{L} = -\frac{1}{|T|} \sum_{t \in T} \log P(y_t \mid y_{<t}, X)$$
+
+Onde:
+- $y_t$ = token correto na posição $t$ da tradução de referência
+- $y_{<t}$ = todos os tokens anteriores (contexto autoregressivo do decoder)
+- $X$ = sequência fonte completa (input do encoder)
+- $P(y_t \mid y_{<t}, X)$ = probabilidade que o modelo atribui ao token correto
+- $T$ = conjunto de tokens **não-mascarados** (exclui tokens PAD)
+
+**Como funciona na prática:**
 
 ```
-Cross-Entropy Loss com mascaramento:
-- Tokens de conteúdo: contribuem para a loss
-- Tokens PAD (id → -100): ignorados pela loss function
-- Isso evita que o modelo aprenda a gerar padding
+Referência: "O paciente apresentou febre" → tokens [101, 5847, 12059, 18453, 1]
+Decoder output (logits → softmax → probabilidades):
+
+  Posição 1: P("O")         = 0.87  → -log(0.87) = 0.139
+  Posição 2: P("paciente")  = 0.72  → -log(0.72) = 0.329
+  Posição 3: P("apresentou")= 0.65  → -log(0.65) = 0.431
+  Posição 4: P("febre")     = 0.58  → -log(0.58) = 0.545
+  Posição 5: P("</s>")      = 0.91  → -log(0.91) = 0.094
+  Posição 6: [PAD] = -100           → IGNORADO (não contribui para loss)
+  Posição 7: [PAD] = -100           → IGNORADO
+
+  Loss = (0.139 + 0.329 + 0.431 + 0.545 + 0.094) / 5 = 0.308
 ```
+
+**Mascaramento de PAD tokens**: Tokens de padding recebem label `-100`, que é o valor especial do PyTorch `nn.CrossEntropyLoss(ignore_index=-100)`. Isso evita que o modelo aprenda a "gerar" padding — ele é avaliado **apenas** pela qualidade dos tokens reais da tradução.
+
+**Relação com eval_loss**: A eval_loss reportada no treinamento (0.97 no epoch 12) é exatamente esta cross-entropy calculada sobre os 2k exemplos de validação. Um valor de 0.97 significa que, em média, o modelo atribui $e^{-0.97} \approx 0.38$ de probabilidade ao token correto — razoável para um vocabulário de 32k tokens (baseline aleatório seria $-\log(1/32128) = 10.38$).
 
 ### Early Stopping
 
@@ -1256,13 +1743,43 @@ No nosso caso: eval_loss melhorou em todas as 12 epochs,
 portanto early stopping NÃO foi acionado.
 ```
 
-### Geração (Inferência)
+### Geração (Inferência) — Beam Search
+
+**Referência**: Freitag, M. & Al-Onaizan, Y. (2017). *Beam Search Strategies for Neural Machine Translation*. In Proceedings of the First Workshop on Neural Machine Translation, pp. 56–60. https://aclanthology.org/W17-3207/
 
 | Parâmetro  | Valor          |
 |------------|----------------|
 | Decodificação | Beam Search |
 | Num beams  | 5              |
 | Max length | 256 tokens     |
+
+**O que é Beam Search?** Em vez de escolher apenas o token mais provável a cada passo (greedy search), o Beam Search mantém as $k$ melhores hipóteses parciais (beams) e expande todas:
+
+$$\text{score}(y_{1:t}) = \sum_{i=1}^{t} \log P(y_i \mid y_{<i}, X)$$
+
+```
+Exemplo com num_beams=3 (simplificado):
+
+Passo 1: gerar primeiro token
+  Beam 1: "O"         score = log(0.87) = -0.139    ✅ Top-3
+  Beam 2: "A"         score = log(0.05) = -2.996    ✅ Top-3
+  Beam 3: "Os"        score = log(0.03) = -3.507    ✅ Top-3
+  (outros 32125 tokens descartados)
+
+Passo 2: expandir cada beam com próximo token
+  Beam 1 → "O paciente"     score = -0.139 + log(0.72) = -0.468  ✅
+  Beam 1 → "O doente"       score = -0.139 + log(0.10) = -2.442  ✅
+  Beam 2 → "A paciente"     score = -2.996 + log(0.45) = -3.795  ✅
+  Beam 2 → "A pessoa"       score = -2.996 + log(0.20) = -4.605
+  Beam 3 → "Os pacientes"   score = -3.507 + log(0.55) = -4.105
+  ... (mantém apenas as 3 melhores hipóteses)
+
+Passo final: selecionar beam com maior score total
+  Melhor: "O paciente apresentou febre persistente"  score = -3.21
+  → Esta é a tradução retornada
+```
+
+**Por que `num_beams=5`?** Valores maiores exploram mais hipóteses mas são mais lentos ($O(k \times V \times T)$ onde $V$ = vocabulário, $T$ = comprimento). Para tradução, 4-5 beams é o padrão na literatura (Vaswani et al., 2017).
 
 ---
 
@@ -1534,6 +2051,24 @@ chrf_score = chrf.corpus_score(predictions, [references])  # corpus-level
 #### O que mede
 COMET é uma métrica **neural aprendida** que utiliza um modelo XLM-RoBERTa fine-tuned em avaliações humanas (Direct Assessments) de competições WMT. Diferente de BLEU e chrF, COMET considera a **frase fonte** (source) além da referência e hipótese, capturando **adequação** (se o significado foi preservado) e **fluência**.
 
+#### Fórmula de treinamento
+
+O modelo COMET é treinado para minimizar o erro quadrático médio (MSE) entre o score previsto e avaliações humanas (Direct Assessments, DA):
+
+$$\mathcal{L}_{COMET} = \frac{1}{N} \sum_{i=1}^{N} \left( f(\mathbf{e}_{src}^i, \mathbf{e}_{mt}^i, \mathbf{e}_{ref}^i) - z_i \right)^2$$
+
+Onde:
+- $f(\cdot)$ = rede feed-forward estimadora (output: score predito)
+- $\mathbf{e}_{src}, \mathbf{e}_{mt}, \mathbf{e}_{ref}$ = embeddings pooled do XLM-R para source, hipótese e referência
+- $z_i$ = z-score da avaliação humana (Direct Assessment normalizado)
+- $N$ = número de exemplos de treinamento (avaliações WMT15–WMT20)
+
+A entrada do estimador combina os embeddings em um vetor de features:
+
+$$\mathbf{f} = [\mathbf{e}_{src}; \, \mathbf{e}_{mt}; \, \mathbf{e}_{ref}; \, |\mathbf{e}_{src} - \mathbf{e}_{mt}|; \, |\mathbf{e}_{ref} - \mathbf{e}_{mt}|; \, \mathbf{e}_{src} \odot \mathbf{e}_{mt}; \, \mathbf{e}_{ref} \odot \mathbf{e}_{mt}]$$
+
+Onde $[\,;\,]$ é concatenação, $|\cdot|$ é diferença absoluta, e $\odot$ é produto elemento a elemento. Isso captura **similaridade**, **diferença** e **interação** entre os pares.
+
 #### Arquitetura
 
 ```
@@ -1784,14 +2319,58 @@ Caso 4: Todas altas
 
 ### Artigos Científicos
 
+#### Métricas de Avaliação
 - Papineni, K., Roukos, S., Ward, T., & Zhu, W.-J. (2002). *BLEU: a Method for Automatic Evaluation of Machine Translation*. In Proceedings of the 40th Annual Meeting of the ACL, pp. 311–318. https://aclanthology.org/P02-1040/
 - Popović, M. (2015). *chrF: character n-gram F-score for automatic MT evaluation*. In Proceedings of the Tenth Workshop on Statistical Machine Translation (WMT), pp. 392–395. https://aclanthology.org/W15-3049/
 - Post, M. (2018). *A Call for Clarity in Reporting BLEU Scores*. In Proceedings of the Third Conference on Machine Translation (WMT), pp. 186–191. https://aclanthology.org/W18-6319/
 - Zhang, T., Kishore, V., Wu, F., Weinberger, K. Q., & Artzi, Y. (2020). *BERTScore: Evaluating Text Generation with BERT*. In International Conference on Learning Representations (ICLR 2020). https://openreview.net/forum?id=SkeHuCVFDr
 - Conneau, A. et al. (2020). *Unsupervised Cross-lingual Representation Learning at Scale*. In Proceedings of ACL 2020, pp. 8440–8451. https://aclanthology.org/2020.acl-main.747/
 - Rei, R. et al. (2022). *COMET-22: Unbabel-IST 2022 Submission for the Metrics Shared Task*. In Proceedings of the Seventh Conference on Machine Translation (WMT), pp. 578–585. https://aclanthology.org/2022.wmt-1.52/
-- Raffel, C. et al. (2019). *Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer*. arXiv:1910.10683
+
+#### Arquitetura e Modelos
+- Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., & Polosukhin, I. (2017). *Attention is All You Need*. In Advances in Neural Information Processing Systems (NeurIPS 2017), pp. 5998–6008. https://arxiv.org/abs/1706.03762
+- Raffel, C. et al. (2019). *Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer*. arXiv:1910.10683. https://arxiv.org/abs/1910.10683
+- Shaw, P., Uszkoreit, J., & Vaswani, A. (2018). *Self-Attention with Relative Position Representations*. In Proceedings of NAACL-HLT 2018, pp. 464–468. https://aclanthology.org/N18-2074/
 - Lopes, A. et al. (2020). *Lite Training Strategies for Portuguese-English and English-Portuguese Translation*. In Proceedings of WMT 2020, pp. 833–840. https://aclanthology.org/2020.wmt-1.90/
+
+#### Tokenização e Pré-processamento
+- Kudo, T. & Richardson, J. (2018). *SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing*. In Proceedings of EMNLP 2018, pp. 66–71. https://aclanthology.org/D18-2012/
+
+#### Otimização e Treinamento
+- Kingma, D. P. & Ba, J. (2014). *Adam: A Method for Stochastic Optimization*. In International Conference on Learning Representations (ICLR 2015). https://arxiv.org/abs/1412.6980
+- Loshchilov, I. & Hutter, F. (2019). *Decoupled Weight Decay Regularization*. In International Conference on Learning Representations (ICLR 2019). https://arxiv.org/abs/1711.05101
+- Smith, L. N. (2018). *A disciplined approach to neural network hyper-parameters: Part 1 – learning rate, batch size, momentum, and weight decay*. arXiv:1803.09820. https://arxiv.org/abs/1803.09820
+- Goyal, P. et al. (2017). *Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour*. arXiv:1706.02677. https://arxiv.org/abs/1706.02677
+- Howard, J. & Ruder, S. (2018). *Universal Language Model Fine-tuning for Text Classification*. In Proceedings of ACL 2018, pp. 328–339. https://aclanthology.org/P18-1031/
+
+#### Regularização
+- Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., & Salakhutdinov, R. (2014). *Dropout: A Simple Way to Prevent Neural Networks from Overfitting*. Journal of Machine Learning Research, 15(1), pp. 1929–1958.
+- Prechelt, L. (1998). *Early Stopping — But When?*. In Neural Networks: Tricks of the Trade, Lecture Notes in Computer Science, vol 1524, pp. 55–69. https://doi.org/10.1007/3-540-49430-8_3
+
+#### Batch Size e Escala
+- Masters, D. & Luschi, C. (2018). *Revisiting Small Batch Training for Deep Neural Networks*. arXiv:1804.07612. https://arxiv.org/abs/1804.07612
+- Keskar, N. S., Mudigere, D., Nocedal, J., Smelyanskiy, M., & Tang, P. T. P. (2017). *On Large-Batch Training for Deep Learning: Generalization Gap and Sharp Minima*. In International Conference on Learning Representations (ICLR 2017). https://arxiv.org/abs/1609.04836
+- Ott, M. et al. (2018). *Scaling Neural Machine Translation*. In Proceedings of the Third Conference on Machine Translation (WMT), pp. 1–9. https://aclanthology.org/W18-6301/
+
+#### Precisão Mista e Eficiência
+- Micikevicius, P. et al. (2018). *Mixed Precision Training*. In International Conference on Learning Representations (ICLR 2018). https://arxiv.org/abs/1710.03740
+- Chen, T., Xu, B., Zhang, C., & Guestrin, C. (2016). *Training Deep Nets with Sublinear Memory Cost*. arXiv:1604.06174. https://arxiv.org/abs/1604.06174
+
+#### Beam Search e Decodificação
+- Freitag, M. & Al-Onaizan, Y. (2017). *Beam Search Strategies for Neural Machine Translation*. In Proceedings of the First Workshop on Neural Machine Translation, pp. 56–60. https://aclanthology.org/W17-3207/
+
+#### Fine-tuning e Adaptação de Domínio
+- Miceli Barone, A. V., Haddow, B., Germann, U., & Sennrich, R. (2017). *Regularization techniques for fine-tuning in neural machine translation*. In Proceedings of EMNLP 2017, pp. 1489–1494. https://aclanthology.org/D17-1156/
+- Freitag, M. & Al-Onaizan, Y. (2016). *Fast Domain Adaptation for Neural Machine Translation*. arXiv:1612.06897
+- Neubig, G. & Hu, J. (2018). *Rapid Adaptation of Neural Machine Translation to New Languages*. In Proceedings of EMNLP 2018, pp. 875–880. https://aclanthology.org/D18-1103/
+- Koehn, P. & Knowles, R. (2017). *Six Challenges for Neural Machine Translation*. In Proceedings of the First Workshop on Neural Machine Translation, pp. 28–39. https://aclanthology.org/W17-3204/
+
+#### LLMs e Tradução
+- Zhu, W. et al. (2023). *Multilingual Machine Translation with Large Language Models: Empirical Results and Analysis*. In Findings of NAACL 2024. arXiv:2304.04675
+- Xu, H. et al. (2023). *A Paradigm Shift in Machine Translation: Boosting Translation Performance of Large Language Models*. In ICLR 2024. arXiv:2309.11674
+
+#### Livros-texto
+- Goodfellow, I., Bengio, Y., & Courville, A. (2016). *Deep Learning*. MIT Press. https://www.deeplearningbook.org/
 
 ### Bibliotecas e Ferramentas
 
@@ -1804,4 +2383,4 @@ Caso 4: Todas altas
 
 ---
 
-**Versão**: 5.0 | **Data**: Fevereiro 2026
+**Versão**: 7.0 | **Data**: Fevereiro 2026
